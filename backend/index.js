@@ -2,6 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 
 import connectMongoDB from './src/configs/mongodb.js';
+import { createReportTable, createUpvoteTable } from './src/models/pg_table.js';
 
 import { authenticateJWT, authorizeRoles } from './src/middlewares/auth.js';
 
@@ -15,21 +16,21 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 connectMongoDB(process.env.MONGODB_URL);
+createReportTable().then(createUpvoteTable());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Home Routes
+// Apply authentication middleware globally
+app.use(authenticateJWT);
+
+// Routes
 app.get('/', (req, res) => {
   res.json({ 
     message: "Welcome to the CrowdSense API"
   });
 });
 
-// Apply authentication middleware globally
-app.use(authenticateJWT);
-
-// Routes
 app.use('/auth', authRoutes);
 app.get("/admin", authorizeRoles('admin'), adminRoutes); // Protected admin route
 
