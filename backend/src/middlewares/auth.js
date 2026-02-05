@@ -1,6 +1,9 @@
 import { verifyToken } from "../utils/jwt.js";
 
 function authenticateJWT(req, res, next) {
+  if(req.path === '/') {
+    return next();
+  }
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {

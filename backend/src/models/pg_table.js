@@ -11,7 +11,6 @@ async function addPostGISExtension() {
 }
 
 async function createReportTable() {
-    await addPostGISExtension();
     const query = `
         CREATE TABLE IF NOT EXISTS reports (
         id UUID PRIMARY KEY,
@@ -52,4 +51,10 @@ async function createUpvoteTable() {
     }
 }
 
-export { createReportTable, createUpvoteTable };
+async function initTables() {
+    await addPostGISExtension();
+    await createReportTable();
+    await createUpvoteTable();
+}
+
+export { initTables };

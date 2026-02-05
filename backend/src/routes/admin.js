@@ -1,4 +1,5 @@
 import express from 'express';
+import { createAdmin } from '../controllers/admin.js';
 
 const router = express.Router();
 
@@ -8,5 +9,7 @@ router.get('/', (req, res) => {
     user: req.user   
   });
 });
+
+router.post('/create-admin', createAdmin)
 
 export default router;
