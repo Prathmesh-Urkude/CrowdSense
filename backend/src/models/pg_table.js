@@ -10,10 +10,20 @@ async function addPostGISExtension() {
     }
 }
 
+async function genUUID() {
+    const query = `CREATE EXTENSION IF NOT EXISTS pgcrypto;`;
+    try {
+        const result = await pool.query(query);
+        console.log("pgcrypto extension ensured for UUID generation:"); 
+    } catch (err) {
+        console.error("Error ensuring pgcrypto extension:", err);
+    }
+}
+
 async function createReportTable() {
     const query = `
         CREATE TABLE IF NOT EXISTS reports (
-        id UUID PRIMARY KEY,
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         title TEXT NOT NULL,
         description TEXT,
         image_url TEXT,
@@ -53,6 +63,7 @@ async function createUpvoteTable() {
 
 async function initTables() {
     await addPostGISExtension();
+    await genUUID();
     await createReportTable();
     await createUpvoteTable();
 }

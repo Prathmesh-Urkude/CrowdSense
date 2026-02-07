@@ -9,20 +9,23 @@ import { authenticateJWT, authorizeRoles } from './src/middlewares/auth.js';
 
 import authRoutes from './src/routes/auth.js';
 import adminRoutes from './src/routes/admin.js';
+import reportsRoutes from './src/routes/reports.js';
 
-
+// Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Connect to MongoDB and seed admin user
 connectMongoDB(process.env.MONGODB_URL).then(seedAdmin());
+// Initialize PostgreSQL tables
 initTables();
 
+// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Apply authentication middleware globally
 app.use(authenticateJWT);
 
 // Routes
@@ -33,8 +36,10 @@ app.get('/', (req, res) => {
 });
 
 app.use('/auth', authRoutes);
-app.get("/admin", authorizeRoles('admin'), adminRoutes); // Protected admin route
+app.use("/admin", authorizeRoles('admin'), adminRoutes); // Protected admin route
+app.use('/reports', reportsRoutes);
 
+// Start the server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
