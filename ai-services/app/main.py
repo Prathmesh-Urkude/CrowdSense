@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from config import PORT
 
 app = FastAPI()
 
@@ -13,3 +14,5 @@ if __name__ == "__main__":
     PORT = int(os.getenv("AI_SERVICE_PORT", 5001))
 
     uvicorn.run(app, host="0.0.0.0", port=PORT, reload=True)
+
+## todo: Internal API Key for secure communication between services and backend. 
