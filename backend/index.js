@@ -11,6 +11,7 @@ import { authenticateJWT, authorizeRoles } from './src/middlewares/auth.js';
 import authRoutes from './src/routes/auth.js';
 import adminRoutes from './src/routes/admin.js';
 import reportsRoutes from './src/routes/reports.js';
+import upvoteRoutes from './src/routes/upvote.js';
 
 // Load environment variables
 dotenv.config();
@@ -43,6 +44,7 @@ app.get('/', (req, res) => {
 
 app.use("/admin", authorizeRoles('admin'), adminRoutes); // Protected admin route
 app.use('/reports', reportsRoutes);
+app.use('/upvote', upvoteRoutes);
 
 // Start the server
 app.listen(PORT, () => {
