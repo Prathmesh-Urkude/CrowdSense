@@ -1,5 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import path from 'path';
 
 import connectMongoDB from './src/configs/mongodb.js';
 import { initTables } from './src/models/pg_table.js';
@@ -26,16 +27,20 @@ initTables();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(authenticateJWT);
+app.use("/uploads", express.static(path.resolve("uploads")));
+
 
 // Routes
+app.use('/auth', authRoutes);
+
+app.use(authenticateJWT);
+
 app.get('/', (req, res) => {
   res.json({ 
     message: "Welcome to the CrowdSense API"
   });
 });
 
-app.use('/auth', authRoutes);
 app.use("/admin", authorizeRoles('admin'), adminRoutes); // Protected admin route
 app.use('/reports', reportsRoutes);
 
