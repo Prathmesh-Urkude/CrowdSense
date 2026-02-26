@@ -61,11 +61,11 @@ async function createUpvoteTable() {
     }
 }
 
-async function initTables() {
+async function initPGTables() {
     await addPostGISExtension();
     await genUUID();
     await createReportTable();
     await createUpvoteTable();
 }
 
-export { initTables };
+export { initPGTables };

@@ -1,16 +1,14 @@
 import pkg from 'pg';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import { PG_HOST, PG_USER, PG_PASSWORD, PG_DATABASE, PG_PORT } from './env.js';
 
 const { Pool } = pkg;
 
 const pool = new Pool({
-    host: process.env.PG_HOST,
-    user: process.env.PG_USER,
-    password: process.env.PG_PASSWORD,  
-    database: process.env.PG_DATABASE,
-    port: process.env.PG_PORT,
+    host: PG_HOST,
+    user: PG_USER,
+    password: PG_PASSWORD,  
+    database: PG_DATABASE,
+    port: PG_PORT,
 });
 
 pool.on('connect', () => {

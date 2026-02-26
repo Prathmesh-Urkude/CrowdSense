@@ -1,9 +1,5 @@
 import jwt from "jsonwebtoken";
-import dotenv from 'dotenv';
-
-dotenv.config();
-
-const JWT_SECRET = process.env.JWT_SECRET
+import { JWT_SECRET } from "../configs/env.js";
 
 function signToken(user) { 
 	const payload = {

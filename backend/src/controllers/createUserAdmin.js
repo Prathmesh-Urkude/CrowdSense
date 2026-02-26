@@ -1,21 +1,17 @@
 import User from "../models/user.js";
-import dotenv from 'dotenv';
-
-dotenv.config();
+import { ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_USERNAME } from "../configs/env.js";
 
 const seedAdmin = async () => {
-    const adminEmail = process.env.ADMIN_EMAIL;
-
     try {
-        const existingAdmin = await User.findOne({ email : adminEmail });
+        const existingAdmin = await User.findOne({ email : ADMIN_EMAIL });
         if(existingAdmin) {
             console.log("Admin user already exists.");
             return;
         }
         await User.create({
-            username: process.env.ADMIN_USERNAME,
-            email: adminEmail,
-            password: process.env.ADMIN_PASSWORD,
+            username: ADMIN_USERNAME,
+            email: ADMIN_EMAIL,
+            password: ADMIN_PASSWORD,
             role: 'admin'
         });
         console.log("Admin user created successfully.");
