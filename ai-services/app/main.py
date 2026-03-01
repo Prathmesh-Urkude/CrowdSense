@@ -1,6 +1,7 @@
 from fastapi import FastAPI
-from fastapi import Header, HTTPException
-from config import PORT, INTERNAL_API_KEY
+from fastapi import Depends
+from configs.config import PORT
+from auth.api_key import verify_internal_api_key
 
 app = FastAPI()
 
@@ -10,20 +11,23 @@ def health():
     return {"status": "AI service running"}
 
 # Protected test route
-@app.get("/test")
-def test_secure(x_internal_api_key: str = Header(None)):
-    if x_internal_api_key != INTERNAL_API_KEY:
-        raise HTTPException(
-            status_code=401,
-            detail="Unauthorized: Invalid or missing API key"
-        )
+@app.post("/healthCheck")
+def health_check(_: None = Depends(verify_internal_api_key)):
+    return {"message": "Authorized access"}
 
-    return {
-        "message": "Authorized access to AI service",
-        "status": "success"
-    }
+@app.post("/analyze")
+def analyze(image_url: str, _: None = Depends(verify_internal_api_key)):
+    pass
+    # result = analyze_image(image_url)
+
+    # return {
+    #     "message": f"Analyzing image from URL: {image_url}",
+    #     "status": "success",
+    #     "category": result["category"],
+    #     "severity_score": result["severity_score"] 
+    # }
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=PORT, reload=True)
+    uvicorn.run("main:app", host="localhost", port=PORT, reload=True)
