@@ -11,6 +11,7 @@ import authRoutes from './src/routes/auth.js';
 import adminRoutes from './src/routes/admin.js';
 import reportsRoutes from './src/routes/reports.js';
 import upvoteRoutes from './src/routes/upvote.js';
+import aiRoute from './src/routes/ai_service.js';
 
 import { PORT } from './src/configs/env.js';
 
@@ -25,10 +26,6 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/uploads", express.static(path.resolve("uploads")));
 
-// temporary route for AI service testing
-import aiRoute from './src/routes/ai_service.js';
-app.use("/ai", aiRoute);
-
 // Routes
 app.use('/auth', authRoutes);
 
@@ -41,6 +38,7 @@ app.get('/', (req, res) => {
 });
 
 app.use("/admin", authorizeRoles('admin'), adminRoutes); // Protected admin route
+app.use("/ai", authorizeRoles('admin'), aiRoute);
 app.use('/reports', reportsRoutes);
 app.use('/upvote', upvoteRoutes);
 

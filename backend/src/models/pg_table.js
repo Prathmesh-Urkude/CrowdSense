@@ -24,9 +24,12 @@ async function createReportTable() {
     const query = `
         CREATE TABLE IF NOT EXISTS reports (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        title TEXT NOT NULL,
         description TEXT,
         image_url TEXT,
+        category VARCHAR,
+        severity_score FLOAT,
+        upvote_count INTEGER DEFAULT 0,
+        priority_score FLOAT,
 
         location GEOGRAPHY(Point, 4326), -- PostGIS
         status VARCHAR(20) DEFAULT 'pending',

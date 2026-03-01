@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.route('/')
     .get(async (req, res) => {
-        const query = 'SELECT * FROM reports LIMIT 10';
+        const query = 'SELECT * FROM reports ORDER BY priority_score DESC, created_at DESC LIMIT 10';
         try {
             const results = await pool.query(query);
             res.status(200).json(results.rows);
