@@ -6,6 +6,7 @@ dotenv.config();
 const PORT = process.env.PORT || 3000;
 const MONGODB_URL = process.env.MONGODB_URL;
 const JWT_SECRET = process.env.JWT_SECRET;
+const REFRESH_SECRET = process.env.REFRESH_SECRET;
 
 // AI Service Configuration
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL;
@@ -27,6 +28,7 @@ export {
     PORT,
     MONGODB_URL,
     JWT_SECRET,
+    REFRESH_SECRET,
     AI_SERVICE_URL,
     AI_SERVICE_API_KEY,
     PG_HOST,

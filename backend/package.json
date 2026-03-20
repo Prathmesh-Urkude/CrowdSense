@@ -14,7 +14,9 @@
   "dependencies": {
     "argon2": "^0.44.0",
     "axios": "^1.13.4",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "crpyto": "^0.0.1-security",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "joi": "^18.0.2",

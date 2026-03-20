@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import cookieParser from "cookie-parser";
 
 import connectMongoDB from './src/configs/mongodb.js';
 import { initPGTables } from './src/models/pg_table.js';
@@ -23,6 +24,7 @@ initPGTables(); // Initialize PostgreSQL tables
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 app.use("/uploads", express.static(path.resolve("uploads")));
 

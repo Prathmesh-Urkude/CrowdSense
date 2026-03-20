@@ -1,5 +1,19 @@
+import crypto from "crypto";
 import User from "../models/user.js";
-import { signToken } from "../utils/jwt.js";
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../utils/jwt.js";
+
+const cookieOptions = {
+	httpOnly: true,
+	secure: true,
+	sameSite: "Strict"
+};
+
+function hashToken(token) {
+  return crypto
+    .createHash("sha256")
+    .update(token)
+    .digest("hex");
+}
 
 const login = async function (req, res) {
     const { email, password } = req.body;
@@ -13,8 +27,16 @@ const login = async function (req, res) {
             return res.status(400).json({ error: 'Wrong password.' });
         }
 
-        const token = signToken(user);
-        return res.status(200).json({ message: 'Signin successful.', token });
+        const accessToken = signAccessToken(user);
+		const refreshToken = signRefreshToken(user);
+
+        const hashedToken = hashToken(refreshToken);
+        user.refreshTokens.push({ token: hashedToken });
+		await user.save();
+
+        res.cookie("accessToken", accessToken, {...cookieOptions, maxAge: 15 * 60 * 1000});
+		res.cookie("refreshToken", refreshToken, {...cookieOptions, maxAge: 7 * 24 * 60 * 60 * 1000});
+        return res.status(200).json({ message: 'Signin successful.'});
     }
     catch (error) {
         res.status(500).json({ error: 'Invalid credentials' });
@@ -38,4 +60,61 @@ const signup = async function (req, res) {
     }
 };
 
-export { login, signup };
+const refresh = async (req, res) => {
+	const token = req.cookies.refreshToken;
+	if (!token) return res.sendStatus(401);
+    const hashedToken = hashToken(token);
+	try {
+		const decoded = verifyRefreshToken(token);
+		const user = await User.findById(decoded._id);
+		if (!user) return res.sendStatus(403);
+
+		const exists = user.refreshTokens.some(t => t.token === hashedToken);
+		if (!exists) {
+            user.refreshTokens = [];
+            await user.save();
+            return res.sendStatus(403);
+        }
+
+        user.refreshTokens = user.refreshTokens.filter(t => t.token !== hashedToken);
+
+        const newRefreshToken = signRefreshToken(user);
+        const newHashedToken = hashToken(newRefreshToken);
+        user.refreshTokens.push({ token: newHashedToken });
+        await user.save();
+
+		const newAccessToken = signAccessToken(user);
+		res.cookie("accessToken", newAccessToken, {...cookieOptions, maxAge: 15 * 60 * 1000 });
+
+		res.json({ message: "Token refreshed" });
+	} 
+    catch (error) {
+		return res.sendStatus(403);
+	}
+};
+
+const logout = async (req, res) => {
+	const token = req.cookies.refreshToken;
+    if (!token) return res.sendStatus(401);
+    const hashedToken = hashToken(token);
+	try {
+		const decoded = verifyRefreshToken(token);
+		const user = await User.findById(decoded._id);
+		if (user) {
+			user.refreshTokens = user.refreshTokens.filter(t => t.token !== hashedToken);
+			await user.save();
+		}
+
+		res.clearCookie("accessToken");
+		res.clearCookie("refreshToken");
+
+		res.json({ message: "Logged out" });
+	} 
+    catch (error) {
+        res.clearCookie("accessToken");
+        res.clearCookie("refreshToken");
+        return res.sendStatus(403);
+    }
+};
+
+export { login, signup, refresh, logout };
