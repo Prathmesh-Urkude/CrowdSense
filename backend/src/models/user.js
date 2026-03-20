@@ -16,7 +16,9 @@ const userSchema = new mongoose.Schema({
     },
     password: {
         type: String,
-        required: true
+        required: function () {
+            return this.provider.includes("local");
+        }
     },
     role: {
         type: String,
@@ -32,16 +34,24 @@ const userSchema = new mongoose.Schema({
             }
         }
     ],
+    provider: {
+        type: [String],
+        enum: ["local", "google"],
+        default: ["local"]
+    },
+    googleId: {
+        type: String,
+    }
 }, { timestamps: true });
 
-userSchema.pre('save', async function(next){
+userSchema.pre('save', async function (next) {
     const user = this;
-    if(!user.isModified('password')) return;
+    if (!user.isModified('password')) return;
 
     this.password = await argon2.hash(user.password);
 });
 
-userSchema.methods.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function (candidatePassword) {
     return argon2.verify(this.password, candidatePassword);
 };
 

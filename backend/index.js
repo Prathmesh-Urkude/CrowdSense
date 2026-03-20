@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import cookieParser from "cookie-parser";
+import cors from 'cors';
 
 import connectMongoDB from './src/configs/mongodb.js';
 import { initPGTables } from './src/models/pg_table.js';
@@ -26,6 +27,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+app.use(cors({
+  origin: "http://localhost:5173",
+  credentials: true
+}));
+
 app.use("/uploads", express.static(path.resolve("uploads")));
 
 // Routes
@@ -34,7 +40,7 @@ app.use('/auth', authRoutes);
 app.use(authenticateJWT); // Protect all routes below with JWT authentication
 
 app.get('/', (req, res) => {
-  res.json({ 
+  res.json({
     message: "Welcome to the CrowdSense API"
   });
 });
