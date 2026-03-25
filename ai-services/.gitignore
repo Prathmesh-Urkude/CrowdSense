@@ -1,3 +1,11 @@
 venv
 .env
 __pycache__/
+train.tar.gz
+dataset/
+images/
+train/
+annotations/
+__pycache__/
+*.pyc
+model/
