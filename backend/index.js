@@ -15,7 +15,7 @@ import reportsRoutes from './src/routes/reports.js';
 import upvoteRoutes from './src/routes/upvote.js';
 import aiRoute from './src/routes/ai_service.js';
 
-import { PORT } from './src/configs/env.js';
+import { PORT, UPLOAD_DIR } from './src/configs/env.js';
 
 const app = express();
 
@@ -32,7 +32,7 @@ app.use(cors({
   credentials: true
 }));
 
-app.use("/uploads", express.static(path.resolve("uploads")));
+app.use("/uploads", express.static(path.resolve(UPLOAD_DIR)));
 
 // Routes
 app.use('/auth', authRoutes);

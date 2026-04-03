@@ -8,6 +8,7 @@ export const PORT = process.env.PORT || 3000;
 export const MONGODB_URL = process.env.MONGODB_URL;
 export const JWT_SECRET = process.env.JWT_SECRET;
 export const REFRESH_SECRET = process.env.REFRESH_SECRET;
+export const UPLOAD_DIR = process.env.UPLOAD_DIR;
 
 // AI Service Configuration
 export const AI_SERVICE_URL = process.env.AI_SERVICE_URL;
