@@ -8,4 +8,4 @@ train/
 annotations/
 __pycache__/
 *.pyc
-model/
+app/ai_model/model
