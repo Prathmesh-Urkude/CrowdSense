@@ -7,9 +7,18 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# TypeScript
+*.tsbuildinfo
+
+.vite/
+
 node_modules
+.pnp
+.pnp.js
+
 dist
 dist-ssr
+build/
 *.local
 
 # Editor directories and files
@@ -24,3 +33,7 @@ dist-ssr
 *.sw?
 
 .env
+.env.local
+.env.*.local
+.env.development
+.env.production
