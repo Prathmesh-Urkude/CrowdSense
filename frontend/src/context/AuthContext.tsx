@@ -4,78 +4,68 @@ import type { User } from '../types';
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 interface RegisterData {
-  name: string;
+  username: string;
   email: string;
   password: string;
-  phone: string;
-  ward: string;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('cs_token'));
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchMe = useCallback(async () => {
     try {
-      const res = await authAPI.me();
+      const res = await authAPI.me(); // cookie automatically sent
       setUser(res.data.data);
     } catch {
-      setToken(null);
-      localStorage.removeItem('cs_token');
+      setUser(null);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (token) {
-      fetchMe();
-    } else {
-      setIsLoading(false);
-    }
-  }, [token, fetchMe]);
+    fetchMe();
+  }, [fetchMe]);
 
   const login = async (email: string, password: string) => {
-    const res = await authAPI.login(email, password);
-    const { token: t, user: u } = res.data.data;
-    localStorage.setItem('cs_token', t);
-    setToken(t);
-    setUser(u);
+    await authAPI.login(email, password);
+    await fetchMe(); // fetch user after login
   };
 
   const register = async (data: RegisterData) => {
-    const res = await authAPI.register(data);
-    const { token: t, user: u } = res.data.data;
-    localStorage.setItem('cs_token', t);
-    setToken(t);
-    setUser(u);
+    await authAPI.register(data);
+    await fetchMe();
   };
 
-  const logout = () => {
-    authAPI.logout().catch(() => {});
-    localStorage.removeItem('cs_token');
-    setToken(null);
+  const logout = async () => {
+    try {
+      await authAPI.logout();
+    } catch {}
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{
-      user, token, isLoading,
-      isAuthenticated: !!user,
-      login, register, logout,
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        isAuthenticated: !!user,
+        login,
+        register,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

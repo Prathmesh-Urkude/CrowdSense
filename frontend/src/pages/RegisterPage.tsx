@@ -1,15 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, Mail, Lock, Phone, MapPin, Eye, EyeOff, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { User, Mail, Lock, MapPin, Eye, EyeOff, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-
-const WARDS = [
-  'Ward 1', 'Ward 2', 'Ward 3', 'Ward 4', 'Ward 5',
-  'Ward 6', 'Ward 7', 'Ward 8', 'Ward 9', 'Ward 10',
-  'Ward 11', 'Ward 12', 'Ward 13', 'Ward 14', 'Ward 15',
-];
 
 const PERKS = [
   'AI-powered damage detection in seconds',
@@ -18,10 +12,28 @@ const PERKS = [
   'Ward-level issue heatmaps',
 ];
 
+const InputRow: React.FC<{
+  label: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}> = ({ label, icon, children }) => (
+  <div>
+    <label className="block text-xs font-display uppercase tracking-widest text-gray-400 mb-2">
+      {label}
+    </label>
+    <div className="relative">
+      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+        {icon}
+      </div>
+      {children}
+    </div>
+  </div>
+);
+
 const RegisterPage: React.FC = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', ward: '' });
+  const [form, setForm] = useState({ username: '', email: '', password: '' });
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -45,18 +57,6 @@ const RegisterPage: React.FC = () => {
     }
   };
 
-  const InputRow: React.FC<{
-    label: string; icon: React.ReactNode; children: React.ReactNode;
-  }> = ({ label, icon, children }) => (
-    <div>
-      <label className="block text-xs font-display uppercase tracking-widest text-gray-400 mb-2">{label}</label>
-      <div className="relative">
-        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">{icon}</div>
-        {children}
-      </div>
-    </div>
-  );
-
   return (
     <div className="min-h-screen flex bg-grid noise">
       {/* Left Panel */}
@@ -74,7 +74,7 @@ const RegisterPage: React.FC = () => {
               BE THE<br /><span className="gradient-text">CHANGE.</span>
             </h2>
             <p className="text-gray-400 text-sm leading-relaxed">
-              Citizens who report issues are the engine of civic improvement. 
+              Citizens who report issues are the engine of civic improvement.
               Every photo you submit powers a smarter city.
             </p>
           </div>
@@ -129,7 +129,7 @@ const RegisterPage: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <InputRow label="Full Name" icon={<User size={15} />}>
               <input
-                type="text" required value={form.name} onChange={update('name')}
+                type="text" required value={form.username} onChange={update('username')}
                 placeholder="Prathmesh Urkude"
                 className="cs-input w-full pl-10 pr-4 py-3.5 rounded-xl text-sm"
               />
@@ -142,30 +142,6 @@ const RegisterPage: React.FC = () => {
                 className="cs-input w-full pl-10 pr-4 py-3.5 rounded-xl text-sm"
               />
             </InputRow>
-
-            <div className="grid grid-cols-2 gap-4">
-              <InputRow label="Phone" icon={<Phone size={15} />}>
-                <input
-                  type="tel" required value={form.phone} onChange={update('phone')}
-                  placeholder="+91 98765 43210"
-                  className="cs-input w-full pl-10 pr-4 py-3.5 rounded-xl text-sm"
-                />
-              </InputRow>
-
-              <div>
-                <label className="block text-xs font-display uppercase tracking-widest text-gray-400 mb-2">Ward</label>
-                <div className="relative">
-                  <MapPin size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
-                  <select
-                    required value={form.ward} onChange={update('ward')}
-                    className="cs-input w-full pl-10 pr-4 py-3.5 rounded-xl text-sm appearance-none"
-                  >
-                    <option value="">Select Ward</option>
-                    {WARDS.map(w => <option key={w} value={w}>{w}</option>)}
-                  </select>
-                </div>
-              </div>
-            </div>
 
             <InputRow label="Password" icon={<Lock size={15} />}>
               <input
@@ -185,11 +161,10 @@ const RegisterPage: React.FC = () => {
               <div className="space-y-1">
                 <div className="flex gap-1">
                   {[1, 2, 3, 4].map(i => (
-                    <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                      form.password.length >= i * 3
+                    <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-300 ${form.password.length >= i * 3
                         ? i <= 1 ? 'bg-red-400' : i <= 2 ? 'bg-amber-400' : i <= 3 ? 'bg-amber' : 'bg-green-400'
                         : 'bg-bg-elevated'
-                    }`} />
+                      }`} />
                   ))}
                 </div>
                 <p className="text-xs text-gray-500">

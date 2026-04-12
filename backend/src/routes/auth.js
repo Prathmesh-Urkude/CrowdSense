@@ -2,6 +2,7 @@ import express from 'express';
 import { login, signup, refresh, logout, googleCallback } from '../controllers/auth.js';
 import passport from "../configs/passport.js";
 import { generateState, cookieOptions } from "../utils/helper.js";
+import { authenticateJWT } from '../middlewares/auth.js';
 
 const router = express.Router();
 
@@ -36,5 +37,12 @@ router.get("/google/callback", (req, res, next) => {
     }),
     googleCallback
 );
+
+router.get("/me", authenticateJWT, (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: req.user,
+  });
+});
 
 export default router;

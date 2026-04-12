@@ -8,8 +8,6 @@ export interface User {
   email: string;
   role: UserRole;
   avatar?: string;
-  phone?: string;
-  ward?: string;
   createdAt: string;
   issuesReported: number;
   issuesResolved: number;

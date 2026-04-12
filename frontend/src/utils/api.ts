@@ -5,30 +5,20 @@ import type {
 } from '../types';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: 'http://localhost:5000/',
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true, // important for cookie-based auth
 });
 
 const aiApi = axios.create({
-  baseURL: '/ai',
+  baseURL: 'http://localhost:5001/', // separate AI service
   headers: { 'Content-Type': 'application/json' },
-});
-
-// ─── Request Interceptor (attach JWT) ─────────────────────────────────────────
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('cs_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
 });
 
 // ─── Response Interceptor (handle 401) ────────────────────────────────────────
 api.interceptors.response.use(
   (res) => res,
   (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('cs_token');
-      window.location.href = '/login';
-    }
     return Promise.reject(error);
   }
 );
@@ -36,10 +26,10 @@ api.interceptors.response.use(
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 export const authAPI = {
   login: (email: string, password: string) =>
-    api.post<ApiResponse<{ token: string; user: User }>>('/auth/login', { email, password }),
+    api.post<ApiResponse<{ user: User }>>('/auth/login', { email, password }),
 
-  register: (data: { name: string; email: string; password: string; phone: string; ward: string }) =>
-    api.post<ApiResponse<{ token: string; user: User }>>('/auth/register', data),
+  register: (data: { username: string; email: string; password: string;}) =>
+    api.post<ApiResponse<{ user: User }>>('/auth/signup', data),
 
   me: () => api.get<ApiResponse<User>>('/auth/me'),
 
