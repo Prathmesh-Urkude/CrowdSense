@@ -10,6 +10,9 @@ const login = async function (req, res) {
         if (!user) {
             return res.status(404).json({ error: 'User not found.' });
         }
+        if (user.isDeleted) {
+            return res.status(403).json({error: "Account has been deleted"});
+        }
         if (!await user.comparePassword(password)) {
             return res.status(400).json({ error: 'Wrong password.' });
         }
@@ -115,8 +118,8 @@ const googleCallback = async (req, res) => {
         user.refreshTokens.push({ token: hashedToken });
         await user.save();
 
-        res.cookie("accessToken", accessToken, {...cookieOptions, maxAge: 15 * 60 * 1000});
-        res.cookie("refreshToken", refreshToken, {...cookieOptions, maxAge: 7 * 24 * 60 * 60 * 1000});
+        res.cookie("accessToken", accessToken, { ...cookieOptions, maxAge: 15 * 60 * 1000 });
+        res.cookie("refreshToken", refreshToken, { ...cookieOptions, maxAge: 7 * 24 * 60 * 60 * 1000 });
 
         res.redirect("http://localhost:5173/dashboard");
     }

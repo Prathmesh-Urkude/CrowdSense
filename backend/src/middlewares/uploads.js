@@ -31,10 +31,27 @@ const fileFilter = (req, file, cb) => {
 };
 
 // Multer upload instance
-const upload = multer({
+export const upload = multer({
     storage,
     fileFilter,
     limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
-export default upload;
+export const deleteImageFromStorage = (imageUrl) => {
+    try {
+        if (!imageUrl) return;
+
+        const filename = path.basename(imageUrl);
+        const filePath = path.resolve(`${UPLOAD_DIR}/images/${filename}`);
+
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            console.log("Image deleted:", filePath);
+        } else {
+            console.log("Image not found:", filePath);
+        }
+    } 
+    catch (err) {
+        console.error("Error deleting image:", err.message);
+    }
+};
