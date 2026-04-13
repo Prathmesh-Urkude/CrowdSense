@@ -1,13 +1,12 @@
 import express from 'express';
 import pool from '../configs/postgresql.js';
-import upload from '../middlewares/uploads.js';
 import { postReport } from '../controllers/reports.js';
 
 const router = express.Router();
 
 router.route('/')
     .get(async (req, res) => {
-        const query = 'SELECT * FROM reports ORDER BY priority_score DESC, created_at DESC LIMIT 10';
+        const query = 'SELECT * FROM reports ORDER BY priority_score DESC, created_at DESC LIMIT 20';
         try {
             const results = await pool.query(query);
             res.status(200).json(results.rows);
@@ -16,7 +15,7 @@ router.route('/')
             res.status(500).json({ error: 'Internal server error' });
         }
     })
-    .post(upload.single('image'), postReport);
+    .post(postReport);
 
 
 export default router;

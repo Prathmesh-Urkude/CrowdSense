@@ -1,18 +1,14 @@
 import pool from '../configs/postgresql.js';
-import { analyzeImage } from '../utils/ai_service.js';
 
-const postReport = async (req, res) => {
-    const { description, lat, lng } = req.body;
-    const image_url = req.file ? `/uploads/images/${req.file.filename}` : null;
+export const postReport = async (req, res) => {
+    const { aiResult, description, lat, lng, categoryByUser, image_url } = req.body;
     const created_by = req.user?._id;
 
     if (!lat || !lng || !image_url) return res.status(400).json({ error: "Missing required fields" });
 
-    const aiResult = await analyzeImage(image_url);
-    const category = aiResult.damage_type || "uncategorized";
+    const category = categoryByUser || aiResult.damage_type || "uncategorized";
     const severity_score = aiResult.severity_score || 0;
-
-    const priority_score = severity_score * 0.9 || 0;
+    const priority_score = severity_score * 0.7|| 0;
 
     const query = `
         INSERT INTO reports (description, image_url, location, created_by, category, severity_score, priority_score) 
@@ -28,5 +24,3 @@ const postReport = async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 };
-
-export { postReport };

@@ -1,27 +1,17 @@
 import express from "express";
-import axios from "axios";
-import { AI_SERVICE_URL, AI_SERVICE_API_KEY } from "../configs/env.js";
+import upload from "../middlewares/uploads.js";
+import { analyzeImage, healthCheck } from "../utils/ai_service.js";
 
 const router = express.Router();
 
-router.post("/healthCheck", async (req, res) => {
-    try {
-        const response = await axios.post(
-            AI_SERVICE_URL + "/healthCheck",
-            { message: "Hello from the backend!" },
-            {headers: {
-                    "x-internal-api-key": AI_SERVICE_API_KEY,
-                    "Content-Type": "application/json"
-                }
-            }
-        );
+router.post("/healthCheck", healthCheck);
 
-        res.json({message: "AI service is working", aiResponse: response.data});
-    }
-    catch (error) {
-        console.error("AI Service Error:", error.response?.data || error.message);
-        res.status(500).json({success: false, error: error.response?.data || "AI service failed"});
-    }
+router.post("/analyze", upload.single('image'), async (req, res) => {
+    const image_url = req.file ? `/uploads/images/${req.file.filename}` : null;
+    const aiResult = await analyzeImage(image_url);
+    res.json({ result: aiResult, image_url });
 });
+
+
 
 export default router;
