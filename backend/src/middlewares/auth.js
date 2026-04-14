@@ -1,19 +1,13 @@
-import { verifyToken } from "../utils/jwt.js";
+import { verifyAccessToken } from "../utils/jwt.js";
 
 function authenticateJWT(req, res, next) {
   if(req.path === '/') {
     return next();
   }
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Missing or invalid Authorization header" });
-  }
-
-  const token = authHeader.split(" ")[1];
-
+  const token = req.cookies.accessToken;
+	if (!token) return res.sendStatus(401);
   try {
-    const user = verifyToken(token);
+    const user = verifyAccessToken(token);
     req.user = user;
     next();
   } catch (err) {

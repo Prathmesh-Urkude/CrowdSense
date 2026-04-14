@@ -9,10 +9,10 @@ const postReport = async (req, res) => {
     if (!lat || !lng || !image_url) return res.status(400).json({ error: "Missing required fields" });
 
     const aiResult = await analyzeImage(image_url);
-    const category = aiResult.category || "uncategorized";
+    const category = aiResult.damage_type || "uncategorized";
     const severity_score = aiResult.severity_score || 0;
 
-    const priority_score = severity_score; // For now, priority is the same as severity.
+    const priority_score = severity_score * 0.9 || 0;
 
     const query = `
         INSERT INTO reports (description, image_url, location, created_by, category, severity_score, priority_score) 
