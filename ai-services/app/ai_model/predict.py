@@ -31,4 +31,5 @@ def predict_image(image_bytes):
         "status": "success",
         "damage_type": damage_type,
         "severity_score": severity,
+        "confidence": confidence
     }
