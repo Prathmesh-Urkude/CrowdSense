@@ -1,6 +1,7 @@
 import User from "../models/user.js";
 import pool from "../configs/postgresql.js";
 import { deleteImageFromStorage } from "../middlewares/uploads.js";
+import { sendStatusUpdateEmail } from "../utils/mailService.js";
 
 export const createAdmin = async (req, res) => {
     const { email } = req.body;
@@ -41,7 +42,7 @@ export const deleteUser = async (req, res) => {
 
         await user.save();
 
-        res.json({message: "User soft deleted successfully"});
+        res.json({ message: "User soft deleted successfully" });
     }
     catch (err) {
         res.status(500).json({ error: err.message });
@@ -51,20 +52,22 @@ export const deleteUser = async (req, res) => {
 export const updateReportStatus = async (req, res) => {
     try {
         const { id } = req.params;
-        const { status } = req.body;
+        const { status, remark } = req.body;
 
         const current = await pool.query(
-            `SELECT status FROM reports WHERE id = $1`,
+            `SELECT * FROM reports WHERE id = $1`,
             [id]
         );
         if (current.rowCount === 0) {
             return res.status(404).json({ error: "Report not found" });
         }
-        const currentStatus = current.rows[0].status;
-        if (currentStatus === 'resolved') {
-            return res.status(400).json({
-                error: "Cannot change status of resolved report"
-            });
+
+        const currentReport = current.rows[0];
+        if (currentReport.status === 'resolved') {
+            return res.status(400).json({ error: "Cannot change status of resolved report" });
+        }
+        if (currentReport.status === status) {
+            return res.status(400).json({ error: `Report is already in '${status}' status.` });
         }
 
         const result = await pool.query(
@@ -80,6 +83,26 @@ export const updateReportStatus = async (req, res) => {
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Report not found.' });
         }
+
+        const updatedReport = result.rows[0];
+        const userData = await User.findById(updatedReport.createdBy);
+        if (userData && !userData.isDeleted) {
+            const emailData = {
+                to: userData.email,
+                username: userData.username || "User",
+                reportId: updatedReport.id,
+                description: updatedReport.description,
+                previousStatus: currentReport.status,
+                newStatus: status,
+                remark,
+                location: updatedReport.location || "Not specified",
+                updatedBy: req.user.username || "Authority",
+                updatedAt: new Date().toLocaleString("en-IN"),
+            };
+            sendStatusUpdateEmail(emailData)
+            .catch((err) => console.error("Email failed:", err.message));
+        }
+
         res.status(200).json({ message: 'Report status updated successfully.', report: result.rows[0] });
     }
     catch (err) {

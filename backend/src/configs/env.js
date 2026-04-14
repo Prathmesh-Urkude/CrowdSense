@@ -29,3 +29,8 @@ export const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 // Google OAuth Credentials
 export const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 export const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+
+// SendGrid Configuration
+export const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;   
+export const EMAIL_FROM = process.env.EMAIL_FROM;
+export const EMAIL_ENABLED = process.env.EMAIL_ENABLED === "true";

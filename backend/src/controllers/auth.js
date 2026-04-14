@@ -1,6 +1,7 @@
 import User from "../models/user.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../utils/jwt.js";
 import { cookieOptions, hashToken } from "../utils/helper.js";
+import { sendSignUpEmail } from "../utils/mailService.js";
 
 const login = async function (req, res) {
     const { email, password } = req.body;
@@ -42,6 +43,8 @@ const signup = async function (req, res) {
             return res.status(400).json({ error: 'User already exists with this email.' });
         }
         await User.create({ username, email, password });
+
+        sendSignUpEmail(email, username).catch(err => console.error("Failed to send signup email:", err));
 
         return res.status(201).json({ message: 'User created successfully.' });
     }
