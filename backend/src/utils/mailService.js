@@ -27,7 +27,7 @@ const sendEmail = async ({ to, subject, text, html }) => {
     }
 };
 
-export const sendSignUpEmail = async (to, name) => {
+export const sendSignUpEmail = async ({ to, name }) => {
     const subject = "Welcome to CrowdSense 🚀";
 
     const text = `Hi ${name},

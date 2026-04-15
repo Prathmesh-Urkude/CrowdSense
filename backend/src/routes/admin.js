@@ -1,5 +1,6 @@
 import express from 'express';
-import { createAdmin, createUser, deleteUser, getReports, updateReportStatus, deleteReport } from '../controllers/admin.js';
+import { createAdmin, deleteUser, updateReportStatus, deleteReport } from '../controllers/admin.js';
+import { serverAdapter } from '../configs/bullBoard.js';
 
 const router = express.Router();
 
@@ -14,5 +15,7 @@ router.post('/create-admin', createAdmin)
 router.delete('/delete-user/:id', deleteUser);
 router.patch('/report/:id/status', updateReportStatus);
 router.delete('/report/:id', deleteReport);
+
+router.use('/queues', serverAdapter.getRouter());
 
 export default router;

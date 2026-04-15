@@ -1,7 +1,8 @@
 import User from "../models/user.js";
 import pool from "../configs/postgresql.js";
 import { deleteImageFromStorage } from "../middlewares/uploads.js";
-import { sendStatusUpdateEmail } from "../utils/mailService.js";
+import { emailQueue } from "../configs/emailQueue.js";
+import { EMAIL_ENABLED } from "../configs/env.js";
 
 export const createAdmin = async (req, res) => {
     const { email } = req.body;
@@ -99,8 +100,16 @@ export const updateReportStatus = async (req, res) => {
                 updatedBy: req.user.username || "Authority",
                 updatedAt: new Date().toLocaleString("en-IN"),
             };
-            sendStatusUpdateEmail(emailData)
-            .catch((err) => console.error("Email failed:", err.message));
+
+            if (EMAIL_ENABLED == "true") {
+                emailQueue.add({
+                    type: "STATUS_UPDATE",
+                    data: emailData,
+                },{
+                    attempts: 3,
+                    backoff: 30000,
+                });
+            }
         }
 
         res.status(200).json({ message: 'Report status updated successfully.', report: result.rows[0] });

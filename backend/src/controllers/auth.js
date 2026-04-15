@@ -1,7 +1,8 @@
 import User from "../models/user.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../utils/jwt.js";
 import { cookieOptions, hashToken } from "../utils/helper.js";
-import { sendSignUpEmail } from "../utils/mailService.js";
+import { emailQueue } from "../configs/emailQueue.js";
+import { EMAIL_ENABLED } from "../configs/env.js";
 
 const login = async function (req, res) {
     const { email, password } = req.body;
@@ -12,7 +13,7 @@ const login = async function (req, res) {
             return res.status(404).json({ error: 'User not found.' });
         }
         if (user.isDeleted) {
-            return res.status(403).json({error: "Account has been deleted"});
+            return res.status(403).json({ error: "Account has been deleted" });
         }
         if (!await user.comparePassword(password)) {
             return res.status(400).json({ error: 'Wrong password.' });
@@ -44,7 +45,19 @@ const signup = async function (req, res) {
         }
         await User.create({ username, email, password });
 
-        sendSignUpEmail(email, username).catch(err => console.error("Failed to send signup email:", err));
+        if (EMAIL_ENABLED == "true") {
+            emailQueue.add({
+                type: "SIGNUP",
+                data: {
+                    to: email,
+                    name: username,
+                }
+            },
+            {
+                attempts: 3,
+                backoff: 30000,
+            });
+        }
 
         return res.status(201).json({ message: 'User created successfully.' });
     }
