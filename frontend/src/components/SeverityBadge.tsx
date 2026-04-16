@@ -39,6 +39,7 @@ interface StatusBadgeProps {
 }
 
 const STATUS_CONFIG = {
+  pending:     { label: 'Pending',     cls: 'status-open'        },
   open:        { label: 'Open',        cls: 'status-open'        },
   in_progress: { label: 'In Progress', cls: 'status-in_progress' },
   resolved:    { label: 'Resolved',    cls: 'status-resolved'    },

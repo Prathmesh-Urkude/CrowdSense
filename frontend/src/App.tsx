@@ -26,7 +26,8 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean 
     </div>
   );
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (adminOnly && user?.role === 'citizen') return <Navigate to="/dashboard" replace />;
+  // Backend roles: 'user' (regular citizen) | 'admin'
+  if (adminOnly && user?.role !== 'admin') return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 };
 
