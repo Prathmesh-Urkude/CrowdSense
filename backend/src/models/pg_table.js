@@ -14,7 +14,7 @@ async function genUUID() {
     const query = `CREATE EXTENSION IF NOT EXISTS pgcrypto;`;
     try {
         const result = await pool.query(query);
-        console.log("pgcrypto extension ensured for UUID generation:"); 
+        console.log("pgcrypto extension ensured for UUID generation:");
     } catch (err) {
         console.error("Error ensuring pgcrypto extension:", err);
     }
@@ -35,7 +35,10 @@ async function createReportTable() {
         status VARCHAR(20) DEFAULT 'pending',
 
         created_by VARCHAR NOT NULL, -- MongoDB userId (string)
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+        updated_by VARCHAR,
+        updated_at TIMESTAMP
         );
     `;
     try {

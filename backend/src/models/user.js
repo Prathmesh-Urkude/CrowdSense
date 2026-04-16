@@ -20,6 +20,11 @@ const userSchema = new mongoose.Schema({
             return this.provider.includes("local");
         }
     },
+    isDeleted: {
+        type: Boolean,
+        default: false
+    },
+    deletedAt: Date, 
     role: {
         type: String,
         enum: ['user', 'admin'],

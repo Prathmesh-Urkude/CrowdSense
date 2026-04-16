@@ -9,16 +9,22 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "worker": "nodemon src/workers/emailWorker.js"
   },
   "dependencies": {
+    "@bull-board/api": "^7.0.0",
+    "@bull-board/express": "^7.0.0",
+    "@sendgrid/mail": "^8.1.6",
     "argon2": "^0.44.0",
     "axios": "^1.13.4",
+    "bull": "^4.16.5",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "crpyto": "^0.0.1-security",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "ioredis": "^5.10.1",
     "joi": "^18.0.2",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.1.5",

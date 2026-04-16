@@ -46,7 +46,7 @@ app.get('/', (req, res) => {
 });
 
 app.use("/admin", authorizeRoles('admin'), adminRoutes); // Protected admin route
-app.use("/ai", authorizeRoles('admin'), aiRoute);
+app.use("/ai", aiRoute);
 app.use('/reports', reportsRoutes);
 app.use('/upvote', upvoteRoutes);
 
