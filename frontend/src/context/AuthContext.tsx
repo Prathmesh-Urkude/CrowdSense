@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authAPI } from '../utils/api';
-import type { User } from '../types';
+import type { User, UserRole } from '../types';
 
 interface AuthContextType {
   user: User | null;
@@ -17,6 +17,23 @@ interface RegisterData {
   password: string;
 }
 
+/**
+ * Map raw backend JWT payload / /me response to frontend User type.
+ * Backend returns: { _id, username, email, role: 'user'|'admin', ... }
+ * Frontend User:   { id, name, email, role, ... }
+ */
+function mapBackendUser(raw: any): User {
+  return {
+    id: raw._id ?? raw.id ?? '',
+    name: raw.username ?? raw.name ?? 'User',
+    username: raw.username,
+    email: raw.email ?? '',
+    role: (raw.role as UserRole) ?? 'user',
+    avatar: raw.avatar,
+    createdAt: raw.createdAt,
+  };
+}
+
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -25,8 +42,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchMe = useCallback(async () => {
     try {
-      const res = await authAPI.me(); // cookie automatically sent
-      setUser(res.data.data);
+      const res = await authAPI.me();
+      const raw = res.data?.data ?? res.data;
+      setUser(mapBackendUser(raw));
     } catch {
       setUser(null);
     } finally {
@@ -40,7 +58,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     await authAPI.login(email, password);
-    await fetchMe(); // fetch user after login
+    await fetchMe();
   };
 
   const register = async (data: RegisterData) => {
@@ -51,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       await authAPI.logout();
-    } catch {}
+    } catch { /* ignore */ }
     setUser(null);
   };
 

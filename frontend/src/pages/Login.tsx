@@ -50,7 +50,9 @@ const Login = () => {
             setError("Invalid email or password");
         }
     };
-
+    const handleGoogleLogin = (): void => {
+    window.location.href = `${import.meta.env.VITE_API_URL}/auth/google`;
+};
     return (
         <Box
             sx={{
@@ -142,6 +144,7 @@ const Login = () => {
                         fullWidth
                         variant="outlined"
                         startIcon={<GoogleIcon />}
+                        onClick={handleGoogleLogin}
                         sx={{
                             mt: 2,
                             borderRadius: "30px",

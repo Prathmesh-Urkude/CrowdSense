@@ -3,24 +3,21 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import {
-  AlertTriangle, CheckCircle2, Clock, Users, Plus,
-  MapPin, ArrowRight, TrendingUp, Zap, Filter
+  AlertTriangle, Clock, Plus,
+  MapPin, ArrowRight, TrendingUp, Zap, Filter,
+  ThumbsUp, Calendar, Activity,
 } from 'lucide-react';
-import StatCard from '../components/StatCard';
-import IssueCard from '../components/IssueCard';
 import { SeverityBadge, StatusBadge, PriorityRing } from '../components/SeverityBadge';
 import { useAuth } from '../context/AuthContext';
-import type { Issue, DashboardStats } from '../types';
+import { reportsAPI, upvoteAPI } from '../utils/api';
+import type { BackendReport } from '../types';
+import toast from 'react-hot-toast';
+import { formatDistanceToNow } from 'date-fns';
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const MOCK_STATS: DashboardStats = {
-  totalIssues: 1284, openIssues: 347, resolvedThisMonth: 203,
-  criticalPending: 18, avgResolutionDays: 4.2, citizensEngaged: 892,
-};
-
+// ─── Chart mock data (kept as placeholder until backend delivers chart endpoints) ─
 const ACTIVITY_DATA = [
   { day: 'Mon', reported: 24, resolved: 18 },
   { day: 'Tue', reported: 31, resolved: 22 },
@@ -32,61 +29,16 @@ const ACTIVITY_DATA = [
 ];
 
 const SEVERITY_DATA = [
-  { name: 'Critical', value: 18, color: '#EF4444' },
-  { name: 'High',     value: 67, color: '#F97316' },
+  { name: 'Critical', value: 18,  color: '#EF4444' },
+  { name: 'High',     value: 67,  color: '#F97316' },
   { name: 'Medium',   value: 142, color: '#F59E0B' },
   { name: 'Low',      value: 120, color: '#22C55E' },
 ];
 
-const WARD_DATA = [
-  { ward: 'Ward 14', issues: 78 },
-  { ward: 'Ward 7',  issues: 65 },
-  { ward: 'Ward 3',  issues: 54 },
-  { ward: 'Ward 11', issues: 48 },
-  { ward: 'Ward 2',  issues: 42 },
-  { ward: 'Ward 9',  issues: 38 },
-];
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const severityFromScore = (score: number): 'critical' | 'high' | 'medium' | 'low' =>
+  score >= 80 ? 'critical' : score >= 60 ? 'high' : score >= 40 ? 'medium' : 'low';
 
-const MOCK_ISSUES: Issue[] = [
-  {
-    id: 'iss_001abc',
-    title: 'Large pothole near bus stop — MG Road',
-    description: 'Deep pothole causing vehicle damage. Multiple reports from commuters.',
-    category: 'pothole', status: 'open', severity: 'critical', priorityScore: 92,
-    location: { address: 'MG Road, near Bus Stop 14', ward: 'Ward 14', city: 'Pune', coordinates: { lat: 18.5204, lng: 73.8567 } },
-    images: [], aiAnalysis: { severity: 'critical', severityScore: 89, priorityScore: 92, confidence: 0.94, damageType: 'Pothole', estimatedArea: 2.4, repairEstimate: '₹18,000 - ₹25,000', urgencyReason: 'High traffic zone', detectedFeatures: ['Deep pothole', 'Edge cracking'], boundingBoxes: [] },
-    reportedBy: { id: 'u1', name: 'Amit Sharma' }, upvotes: 47, comments: [], createdAt: new Date(Date.now() - 2 * 3600000).toISOString(), updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'iss_002def',
-    title: 'Road crack spreading — FC Road',
-    description: 'Long crack developing across the main road width. Needs urgent attention.',
-    category: 'crack', status: 'in_progress', severity: 'high', priorityScore: 74,
-    location: { address: 'FC Road, Shivajinagar', ward: 'Ward 7', city: 'Pune', coordinates: { lat: 18.5300, lng: 73.8453 } },
-    images: [], aiAnalysis: { severity: 'high', severityScore: 72, priorityScore: 74, confidence: 0.88, damageType: 'Linear Crack', estimatedArea: 5.1, repairEstimate: '₹8,000 - ₹12,000', urgencyReason: 'Spreading pattern', detectedFeatures: ['Alligator cracking', 'Surface deformation'], boundingBoxes: [] },
-    reportedBy: { id: 'u2', name: 'Priya Patil' }, upvotes: 23, comments: [], createdAt: new Date(Date.now() - 8 * 3600000).toISOString(), updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'iss_003ghi',
-    title: 'Waterlogging on Baner Road',
-    description: 'Severe waterlogging during rain. Road becomes unusable.',
-    category: 'waterlogging', status: 'open', severity: 'medium', priorityScore: 58,
-    location: { address: 'Baner Road, near Balewadi', ward: 'Ward 3', city: 'Pune', coordinates: { lat: 18.5590, lng: 73.7868 } },
-    images: [], aiAnalysis: { severity: 'medium', severityScore: 55, priorityScore: 58, confidence: 0.82, damageType: 'Waterlogging', estimatedArea: 15.0, repairEstimate: '₹30,000 - ₹50,000', urgencyReason: 'Drainage failure', detectedFeatures: ['Standing water', 'Drainage blockage'], boundingBoxes: [] },
-    reportedBy: { id: 'u3', name: 'Rahul Deshmukh' }, upvotes: 12, comments: [], createdAt: new Date(Date.now() - 24 * 3600000).toISOString(), updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'iss_004jkl',
-    title: 'Damaged footpath — Deccan Gymkhana',
-    description: 'Footpath tiles broken and uplifted. Hazard for pedestrians.',
-    category: 'damaged_footpath', status: 'resolved', severity: 'low', priorityScore: 35,
-    location: { address: 'Deccan Gymkhana, Pune', ward: 'Ward 11', city: 'Pune', coordinates: { lat: 18.5167, lng: 73.8369 } },
-    images: [], aiAnalysis: { severity: 'low', severityScore: 30, priorityScore: 35, confidence: 0.91, damageType: 'Footpath Damage', estimatedArea: 3.2, repairEstimate: '₹5,000 - ₹8,000', urgencyReason: 'Pedestrian safety', detectedFeatures: ['Lifted tiles', 'Uneven surface'], boundingBoxes: [] },
-    reportedBy: { id: 'u4', name: 'Sneha Kulkarni' }, upvotes: 8, comments: [], createdAt: new Date(Date.now() - 48 * 3600000).toISOString(), updatedAt: new Date().toISOString(), resolvedAt: new Date().toISOString(),
-  },
-];
-
-// ─── Custom Tooltip ───────────────────────────────────────────────────────────
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
@@ -99,21 +51,166 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-// ─── Main Dashboard ───────────────────────────────────────────────────────────
+// ─── Stat Card Component ──────────────────────────────────────────────────────
+interface StatCardProps {
+  label: string;
+  value: string | number;
+  icon: React.ElementType;
+  accent: string;       // tailwind color token e.g. 'amber', 'red', 'green'
+  delta?: string;
+  deltaUp?: boolean;
+  suffix?: string;
+  gradient?: string;
+}
+
+const StatCard: React.FC<StatCardProps> = ({
+  label, value, icon: Icon, accent, delta, deltaUp, suffix = '', gradient,
+}) => {
+  const colorMap: Record<string, { bg: string; border: string; text: string; glow: string }> = {
+    amber:  { bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   text: 'text-amber-400',   glow: 'shadow-amber-500/20' },
+    red:    { bg: 'bg-red-500/10',     border: 'border-red-500/20',     text: 'text-red-400',     glow: 'shadow-red-500/20' },
+    green:  { bg: 'bg-green-500/10',   border: 'border-green-500/20',   text: 'text-green-400',   glow: 'shadow-green-500/20' },
+    cyan:   { bg: 'bg-cyan-500/10',    border: 'border-cyan-500/20',    text: 'text-cyan-400',    glow: 'shadow-cyan-500/20' },
+    purple: { bg: 'bg-purple-500/10',  border: 'border-purple-500/20',  text: 'text-purple-400',  glow: 'shadow-purple-500/20' },
+    blue:   { bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    text: 'text-blue-400',    glow: 'shadow-blue-500/20' },
+  };
+  const c = colorMap[accent] ?? colorMap.amber;
+
+  return (
+    <div className={`cs-card p-4 relative overflow-hidden group hover:scale-[1.02] transition-transform duration-200 shadow-lg ${c.glow}`}>
+      {/* Gradient backdrop */}
+      <div className={`absolute inset-0 opacity-0 group-hover:opacity-5 transition-opacity duration-300 ${gradient ?? ''}`} />
+
+      <div className="flex items-start justify-between mb-3">
+        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${c.bg} ${c.border}`}>
+          <Icon size={18} className={c.text} />
+        </div>
+        {delta && (
+          <span className={`text-xs font-mono px-2 py-0.5 rounded-full border ${
+            deltaUp
+              ? 'text-green-400 bg-green-500/10 border-green-500/20'
+              : 'text-red-400 bg-red-500/10 border-red-500/20'
+          }`}>
+            {deltaUp ? '↑' : '↓'} {delta}
+          </span>
+        )}
+      </div>
+
+      <div className="font-display text-3xl font-black text-white leading-none mb-1">
+        {typeof value === 'number' ? value.toLocaleString('en-IN') : value}
+        {suffix && <span className="text-base font-bold text-gray-400 ml-1">{suffix}</span>}
+      </div>
+      <div className="text-xs text-gray-500 font-medium tracking-wide">{label}</div>
+
+      {/* Bottom accent bar */}
+      <div className={`absolute bottom-0 left-0 right-0 h-0.5 ${c.bg} opacity-60`} />
+    </div>
+  );
+};
+
+// ─── Report Mini-Card ─────────────────────────────────────────────────────────
+const ReportCard: React.FC<{ report: BackendReport; index: number }> = ({ report, index }) => {
+  const [upvoted, setUpvoted] = useState(false);
+  const [count, setCount] = useState(report.upvote_count ?? 0);
+  const sev = severityFromScore(report.severity_score);
+
+  const handleUpvote = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      await upvoteAPI.toggle(report.id);
+      setUpvoted(p => !p);
+      setCount(p => upvoted ? p - 1 : p + 1);
+    } catch {
+      toast.error('Login required to upvote.');
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.05 }}
+      className="cs-card p-4 flex flex-col gap-3 hover:scale-[1.01] transition-transform duration-200"
+    >
+      {/* Image */}
+      {report.image_url ? (
+        <div className="rounded-xl overflow-hidden h-36 bg-bg-elevated">
+          <img
+            src={`http://localhost:5000${report.image_url}`}
+            alt="report"
+            className="w-full h-full object-cover"
+          />
+        </div>
+      ) : (
+        <div className="rounded-xl h-36 bg-bg-elevated border border-border flex items-center justify-center">
+          <MapPin size={28} className="text-gray-600" />
+        </div>
+      )}
+
+      {/* Badges */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <SeverityBadge severity={sev} size="sm" />
+        <span className="text-xs font-mono text-gray-600">#{report.id}</span>
+      </div>
+
+      {/* Description */}
+      <p className="text-sm text-gray-300 line-clamp-2 flex-1">
+        {report.description || 'No description provided.'}
+      </p>
+
+      {/* Category & date */}
+      <div className="text-xs text-gray-500 flex items-center justify-between">
+        <span className="capitalize font-medium text-gray-400">{report.category}</span>
+        <span className="flex items-center gap-1">
+          <Calendar size={10} />
+          {formatDistanceToNow(new Date(report.created_at), { addSuffix: true })}
+        </span>
+      </div>
+
+      {/* Upvote + Priority */}
+      <div className="flex items-center justify-between pt-2 border-t border-border">
+        <button
+          onClick={handleUpvote}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-all ${
+            upvoted
+              ? 'bg-amber/10 border-amber/30 text-amber'
+              : 'bg-bg-elevated border-border text-gray-400 hover:border-amber/20'
+          }`}
+        >
+          <ThumbsUp size={12} className={upvoted ? 'fill-amber' : ''} />
+          {count} Upvote{count !== 1 ? 's' : ''}
+        </button>
+        <PriorityRing score={report.priority_score} size={40} />
+      </div>
+    </motion.div>
+  );
+};
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const [stats] = useState<DashboardStats>(MOCK_STATS);
+  const [reports, setReports] = useState<BackendReport[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 600);
-    return () => clearTimeout(t);
+    reportsAPI.getAll()
+      .then(res => setReports(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setReports([]))
+      .finally(() => setLoading(false));
   }, []);
 
   const greeting = () => {
     const h = new Date().getHours();
     return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
   };
+
+  // Derived stats from real reports
+  const totalIssues   = reports.length;
+  const openIssues    = reports.filter(r => !r.status || r.status === 'open').length;
+  const criticalCount = reports.filter(r => r.severity_score >= 80).length;
+  const avgPriority   = totalIssues
+    ? Math.round(reports.reduce((s, r) => s + r.priority_score, 0) / totalIssues)
+    : 0;
 
   if (loading) {
     return (
@@ -130,58 +227,65 @@ const Dashboard: React.FC = () => {
     <div className="min-h-screen pt-16 bg-grid noise">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-        {/* Header */}
+        {/* ── Header ── */}
         <motion.div
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}
           className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8"
         >
           <div>
             <p className="text-gray-500 text-sm mb-1">{greeting()},</p>
             <h1 className="font-display text-4xl font-black text-white">
-              {user?.name?.toUpperCase() || 'CITIZEN'} <span className="text-amber">👋</span>
+              {/* Everyone sees their own name in the greeting */}
+              {(user?.name ?? 'CITIZEN').toUpperCase()} <span className="text-amber">👋</span>
             </h1>
             <p className="text-gray-400 text-sm mt-1">
-              {user?.ward} • {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+              {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
           </div>
-          <Link to="/report" className="btn-primary px-6 py-3 rounded-xl flex items-center gap-2 self-start sm:self-auto">
-            <Plus size={18} /> Report New Issue
-          </Link>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            {user?.role === 'admin' && (
+              <Link to="/admin" className="btn-secondary px-5 py-3 rounded-xl flex items-center gap-2 text-sm">
+                <Activity size={16} /> Admin Panel
+              </Link>
+            )}
+            <Link to="/report" className="btn-primary px-6 py-3 rounded-xl flex items-center gap-2">
+              <Plus size={18} /> Report Issue
+            </Link>
+          </div>
         </motion.div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
-          <div className="xl:col-span-1 col-span-1">
-            <StatCard label="Total Issues"      value={stats.totalIssues}        icon={AlertTriangle} accent="amber" />
-          </div>
-          <div className="xl:col-span-1 col-span-1">
-            <StatCard label="Open Issues"       value={stats.openIssues}         icon={Clock}        accent="red" delta="12%" deltaUp={false} />
-          </div>
-          <div className="xl:col-span-1 col-span-1">
-            <StatCard label="Resolved (Month)"  value={stats.resolvedThisMonth}  icon={CheckCircle2} accent="green" delta="18%" deltaUp={true} />
-          </div>
-          <div className="xl:col-span-1 col-span-1">
-            <StatCard label="Critical Pending"  value={stats.criticalPending}    icon={Zap}          accent="red" />
-          </div>
-          <div className="xl:col-span-1 col-span-1">
-            <StatCard label="Avg Fix (days)"    value={stats.avgResolutionDays}  icon={TrendingUp}   accent="cyan" suffix=" d" />
-          </div>
-          <div className="xl:col-span-1 col-span-1">
-            <StatCard label="Citizens Active"   value={stats.citizensEngaged}    icon={Users}        accent="purple" delta="8%" deltaUp={true} />
-          </div>
+        {/* ── Stats Grid ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <StatCard
+            label="Total Reports"      value={totalIssues}   icon={AlertTriangle}
+            accent="amber"  gradient="bg-amber-500"
+          />
+          <StatCard
+            label="Open Issues"        value={openIssues}    icon={Clock}
+            accent="red"    delta="Live" deltaUp={false}
+          />
+          <StatCard
+            label="Critical"           value={criticalCount} icon={Zap}
+            accent="red"
+          />
+          <StatCard
+            label="Avg Priority Score" value={avgPriority}   icon={TrendingUp}
+            accent="cyan"   suffix="/100"
+          />
         </div>
 
-        {/* Charts Row */}
+        {/* ── Charts Row ── */}
         <div className="grid lg:grid-cols-3 gap-5 mb-8">
-          {/* Activity Chart */}
+          {/* Activity chart */}
           <div className="lg:col-span-2 cs-card p-5">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h3 className="font-display text-lg font-bold text-white uppercase tracking-wide">Weekly Activity</h3>
                 <p className="text-xs text-gray-500">Reports vs Resolutions — Last 7 days</p>
               </div>
-              <span className="text-xs font-mono text-green-400 bg-green-500/10 px-2 py-1 rounded border border-green-500/20">+18% resolved</span>
+              <span className="text-xs font-mono text-green-400 bg-green-500/10 px-2 py-1 rounded border border-green-500/20">
+                +18% resolved
+              </span>
             </div>
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={ACTIVITY_DATA} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
@@ -196,16 +300,16 @@ const Dashboard: React.FC = () => {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
-                <XAxis dataKey="day" tick={{ fill: '#6B7280', fontSize: 11, fontFamily: 'Manrope' }} />
-                <YAxis tick={{ fill: '#6B7280', fontSize: 11, fontFamily: 'Manrope' }} />
+                <XAxis dataKey="day" tick={{ fill: '#6B7280', fontSize: 11 }} />
+                <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} />
                 <Tooltip content={<CustomTooltip />} />
                 <Area type="monotone" dataKey="reported" name="Reported" stroke="#F97316" strokeWidth={2} fill="url(#gradReported)" />
-                <Area type="monotone" dataKey="resolved" name="Resolved" stroke="#06B6D4" strokeWidth={2} fill="url(#gradResolved)" />
+                <Area type="monotone" dataKey="resolved"  name="Resolved"  stroke="#06B6D4" strokeWidth={2} fill="url(#gradResolved)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Severity Pie */}
+          {/* Severity breakdown */}
           <div className="cs-card p-5">
             <h3 className="font-display text-lg font-bold text-white uppercase tracking-wide mb-1">By Severity</h3>
             <p className="text-xs text-gray-500 mb-4">Open issues breakdown</p>
@@ -213,9 +317,7 @@ const Dashboard: React.FC = () => {
               <PieChart>
                 <Pie data={SEVERITY_DATA} cx="50%" cy="50%" innerRadius={45} outerRadius={70}
                   dataKey="value" stroke="none">
-                  {SEVERITY_DATA.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
+                  {SEVERITY_DATA.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                 </Pie>
                 <Tooltip content={<CustomTooltip />} />
               </PieChart>
@@ -234,81 +336,76 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Ward Heatbar + Priority Queue */}
-        <div className="grid lg:grid-cols-2 gap-5 mb-8">
-          {/* Ward Issues */}
-          <div className="cs-card p-5">
-            <h3 className="font-display text-lg font-bold text-white uppercase tracking-wide mb-1">Top Affected Wards</h3>
-            <p className="text-xs text-gray-500 mb-5">Open issues per ward</p>
+        {/* ── Priority Bar Chart ── */}
+        {reports.length > 0 && (
+          <div className="cs-card p-5 mb-8">
+            <h3 className="font-display text-lg font-bold text-white uppercase tracking-wide mb-1">Priority Scores</h3>
+            <p className="text-xs text-gray-500 mb-4">Top reports by priority</p>
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={WARD_DATA} layout="vertical" margin={{ top: 0, right: 30, bottom: 0, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" horizontal={false} />
-                <XAxis type="number" tick={{ fill: '#6B7280', fontSize: 10 }} />
-                <YAxis type="category" dataKey="ward" tick={{ fill: '#9CA3AF', fontSize: 11 }} width={52} />
+              <BarChart
+                data={reports.slice(0, 8).map(r => ({
+                  name: `#${r.id}`,
+                  priority: r.priority_score,
+                  severity: r.severity_score,
+                }))}
+                margin={{ top: 5, right: 10, bottom: 0, left: -20 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
+                <XAxis dataKey="name" tick={{ fill: '#6B7280', fontSize: 10 }} />
+                <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} domain={[0, 100]} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="issues" name="Issues" fill="#F97316" radius={[0, 4, 4, 0]}
-                  background={{ fill: '#1A2235', radius: 4 }} />
+                <Bar dataKey="priority"  name="Priority"  fill="#F97316" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="severity" name="Severity" fill="#EF4444"  radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
+        )}
 
-          {/* Priority Queue */}
-          <div className="cs-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="font-display text-lg font-bold text-white uppercase tracking-wide">Priority Queue</h3>
-                <p className="text-xs text-gray-500">Highest severity open issues</p>
-              </div>
-              <Link to="/issues?sortBy=priorityScore" className="text-xs text-amber hover:underline flex items-center gap-1">
-                View All <ArrowRight size={12} />
-              </Link>
-            </div>
-            <div className="space-y-3">
-              {MOCK_ISSUES.filter(i => i.status !== 'resolved').sort((a, b) => b.priorityScore - a.priorityScore).slice(0, 4).map((issue, idx) => (
-                <Link key={issue.id} to={`/issues/${issue.id}`}>
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-bg-elevated hover:bg-white/5 transition group">
-                    <div className="font-display text-2xl font-black text-gray-600 w-6 text-center">
-                      {idx + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white truncate leading-tight">{issue.title}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <SeverityBadge severity={issue.severity} size="sm" />
-                        <span className="text-xs text-gray-500 flex items-center gap-1">
-                          <MapPin size={9} />{issue.location.ward}
-                        </span>
-                      </div>
-                    </div>
-                    <PriorityRing score={issue.priorityScore} size={44} />
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Issues */}
+        {/* ── Recent Reports ── */}
         <div>
           <div className="flex items-center justify-between mb-5">
             <div>
               <h2 className="font-display text-2xl font-bold text-white uppercase tracking-wide">Recent Reports</h2>
-              <p className="text-xs text-gray-500">Latest issues in your area</p>
+              <p className="text-xs text-gray-500">Latest from the community — upvote to prioritise</p>
             </div>
-            <div className="flex gap-2">
-              <Link to="/issues" className="btn-secondary px-4 py-2 rounded-lg text-xs flex items-center gap-1.5">
-                <Filter size={13} /> All Issues
-              </Link>
-              <Link to="/report" className="btn-primary px-4 py-2 rounded-lg text-xs flex items-center gap-1.5">
-                <Plus size={13} /> Report
+            <Link to="/issues" className="btn-secondary px-4 py-2 rounded-lg text-xs flex items-center gap-1.5">
+              <Filter size={13} /> All Issues
+            </Link>
+          </div>
+
+          {reports.length === 0 ? (
+            <div className="cs-card p-12 text-center">
+              <AlertTriangle size={40} className="text-gray-600 mx-auto mb-4" />
+              <p className="font-display text-lg font-bold text-gray-500 uppercase tracking-wide">No reports yet</p>
+              <p className="text-sm text-gray-600 mt-1 mb-6">Be the first to report a civic issue.</p>
+              <Link to="/report" className="btn-primary px-6 py-3 rounded-xl inline-flex items-center gap-2">
+                <Plus size={16} /> Report an Issue
               </Link>
             </div>
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {MOCK_ISSUES.map((issue, i) => (
-              <IssueCard key={issue.id} issue={issue} view="grid" index={i} />
-            ))}
-          </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {reports.map((report, i) => (
+                <ReportCard key={report.id} report={report} index={i} />
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* ── Quick link for admin ── */}
+        {user?.role === 'admin' && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+            className="mt-8 cs-card p-5 border-amber/20 bg-amber/5 flex items-center justify-between"
+          >
+            <div>
+              <p className="font-display font-bold text-white">Admin Dashboard</p>
+              <p className="text-xs text-gray-400">Manage reports, users, and send feedback to citizens.</p>
+            </div>
+            <Link to="/admin" className="btn-primary px-5 py-2.5 rounded-xl text-sm flex items-center gap-2">
+              <Activity size={15} /> Open <ArrowRight size={14} />
+            </Link>
+          </motion.div>
+        )}
       </div>
     </div>
   );

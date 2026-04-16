@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { MapPin, ThumbsUp, MessageCircle, Clock, ChevronRight } from 'lucide-react';
@@ -6,6 +6,7 @@ import { SeverityBadge, StatusBadge, PriorityRing } from './SeverityBadge';
 import type { Issue } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import clsx from 'clsx';
+import { upvoteAPI } from '../utils/api';
 
 interface IssueCardProps {
   issue: Issue;
@@ -24,6 +25,27 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const IssueCard: React.FC<IssueCardProps> = ({ issue, view = 'grid', index = 0 }) => {
   const timeAgo = formatDistanceToNow(new Date(issue.createdAt), { addSuffix: true });
+  const [upvoted, setUpvoted] = useState(false);
+  const [upvoteCount, setUpvoteCount] = useState(issue.upvotes);
+  const [upvoting, setUpvoting] = useState(false);
+
+  const handleUpvote = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (upvoting) return;
+    setUpvoting(true);
+    try {
+      const res = await upvoteAPI.toggle(issue.id);
+      setUpvoted(res.data?.hasUpvoted ?? !upvoted);
+      setUpvoteCount(res.data?.upvotes ?? upvoteCount);
+    } catch {
+      // optimistic update on error
+      setUpvoted(v => !v);
+      setUpvoteCount(c => upvoted ? c - 1 : c + 1);
+    } finally {
+      setUpvoting(false);
+    }
+  };
 
   if (view === 'list') {
     return (
@@ -70,7 +92,17 @@ const IssueCard: React.FC<IssueCardProps> = ({ issue, view = 'grid', index = 0 }
             {/* Stats */}
             <div className="hidden md:flex flex-col gap-1 items-end flex-shrink-0">
               <div className="flex items-center gap-3 text-xs text-gray-500">
-                <span className="flex items-center gap-1"><ThumbsUp size={11} />{issue.upvotes}</span>
+                <button
+                  onClick={handleUpvote}
+                  disabled={upvoting}
+                  className={clsx(
+                    'flex items-center gap-1 transition-colors',
+                    upvoted ? 'text-accent-blue' : 'text-gray-500 hover:text-accent-blue'
+                  )}
+                >
+                  <ThumbsUp size={11} className={upvoted ? 'fill-current' : ''} />
+                  {upvoteCount}
+                </button>
                 <span className="flex items-center gap-1"><MessageCircle size={11} />{issue.comments.length}</span>
               </div>
               <span className="flex items-center gap-1 text-xs text-gray-600"><Clock size={11} />{timeAgo}</span>
@@ -142,7 +174,17 @@ const IssueCard: React.FC<IssueCardProps> = ({ issue, view = 'grid', index = 0 }
                 <span className="truncate max-w-[120px]">{issue.location.ward}</span>
               </div>
               <div className="flex items-center gap-3 text-xs text-gray-500">
-                <span className="flex items-center gap-1"><ThumbsUp size={11} />{issue.upvotes}</span>
+                <button
+                  onClick={handleUpvote}
+                  disabled={upvoting}
+                  className={clsx(
+                    'flex items-center gap-1 transition-colors',
+                    upvoted ? 'text-accent-blue' : 'text-gray-500 hover:text-accent-blue'
+                  )}
+                >
+                  <ThumbsUp size={11} className={upvoted ? 'fill-current' : ''} />
+                  {upvoteCount}
+                </button>
                 <span className="flex items-center gap-1"><MessageCircle size={11} />{issue.comments.length}</span>
               </div>
             </div>
