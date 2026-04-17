@@ -9,3 +9,4 @@ annotations/
 __pycache__/
 *.pyc
 app/ai_model/model
+app/test.py

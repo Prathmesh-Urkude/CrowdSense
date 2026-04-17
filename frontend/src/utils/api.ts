@@ -10,12 +10,6 @@ const api = axios.create({
   withCredentials: true, // httpOnly cookie auth
 });
 
-// Separate AI micro-service (port 5001)
-const aiApi = axios.create({
-  baseURL: 'http://localhost:5001/',
-  withCredentials: false,
-});
-
 // ─── Response interceptor: auto-refresh on 401 ───────────────────────────────
 // Only redirect to /login from protected pages, never from auth routes themselves
 // (avoids an infinite loop when /auth/me returns 401 on the login page)
@@ -104,7 +98,7 @@ export const aiAPI = {
    * The AI service returns analysis result (damage_type, severity_score, etc.)
    */
   analyze: (imageData: FormData) =>
-    aiApi.post<AIAnalysis | any>('/analyze', imageData, {
+    api.post<AIAnalysis | any>('/ai/analyze', imageData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 30000,
     }),

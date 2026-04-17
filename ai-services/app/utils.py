@@ -7,5 +7,5 @@ class ImageURL(BaseModel):
 
 
 def get_absolute_image_path(image_url: str) -> str:
-    relative_path = image_url.replace("/uploads", "", 1).lstrip("/\\")
+    relative_path = image_url.replace("uploads", "", 1).lstrip("/\\")
     return os.path.join(UPLOAD_DIR, relative_path)
