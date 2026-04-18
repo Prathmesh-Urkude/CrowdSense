@@ -64,10 +64,14 @@ export const reportsAPI = {
    * Fields: description (text), lat (text), lng (text)
    * File:   image (single image file, field name "image")
    */
-  create: (formData: FormData) =>
-    api.post('/reports', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+  create: (data: {
+    image_url: string;
+    aiResult: object;
+    description: string;
+    lat: number;
+    lng: number;
+    categoryByUser: string;
+  }) => api.post('/reports', data),
 
   /** DELETE /reports/:id  (needs backend endpoint) */
   delete: (id: string | number) => api.delete(`/reports/${id}`),

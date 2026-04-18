@@ -13,8 +13,9 @@
  *   • On submit → POST /reports (multipart: image file + description + lat + lng)
  */
 
-import React, { useState, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import React, { useState, useCallback, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import { latLng } from 'leaflet';
 import type { LatLng } from 'leaflet';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,7 +23,7 @@ import { useDropzone } from 'react-dropzone';
 import {
   Camera, MapPin, Brain, CheckCircle2, AlertTriangle,
   X, ChevronRight, ChevronLeft, Zap, BarChart3,
-  DollarSign, Clock, Upload,
+  DollarSign, Clock, Upload, Navigation,
 } from 'lucide-react';
 import { SeverityBadge, SeverityBar, PriorityRing } from '../components/SeverityBadge';
 import toast from 'react-hot-toast';
@@ -99,6 +100,14 @@ const LocationPicker: React.FC<{ onPick: (ll: LatLng) => void }> = ({ onPick }) 
   return null;
 };
 
+const FlyToLocation: React.FC<{ position: LatLng | null }> = ({ position }) => {
+  const map = useMap();
+  React.useEffect(() => {
+    if (position) map.flyTo(position, 16, { duration: 1.5 });
+  }, [map, position]);
+  return null;
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 const ReportIssue: React.FC = () => {
   const navigate = useNavigate();
@@ -111,12 +120,14 @@ const ReportIssue: React.FC = () => {
   const [preview, setPreview] = useState<string>('');
   const [analyzing, setAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState<AIResult | null>(null);
+  const [imageUrl, setImageUrl] = useState<string>('');
 
   // Step 2 state
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState<LatLng | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [locating, setLocating] = useState(false);
 
   // ─── Dropzone ─────────────────────────────────────────────────────────────
   const onDrop = useCallback((accepted: File[]) => {
@@ -142,7 +153,9 @@ const ReportIssue: React.FC = () => {
       const fd = new FormData();
       fd.append('image', imageFile);
       const res = await aiAPI.analyze(fd);
-      const normalised = normaliseAIResponse(res.data);
+      const url = res.data?.image_url ?? res.data?.imageUrl ?? '';
+      setImageUrl(url);
+      const normalised = normaliseAIResponse(res.data.result ?? res.data);
       setAiResult(normalised);
       setCategory(normalised.suggestedCategory || 'other');
       toast.success('AI analysis complete!');
@@ -160,21 +173,64 @@ const ReportIssue: React.FC = () => {
     }
   };
 
+  // ─── Auto-fetch location when entering step 2 ────────────────────────────
+  useEffect(() => {
+    if (step !== 1 || location) return;
+    if (!navigator.geolocation) return;
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setLocation(latLng(coords.latitude, coords.longitude));
+        setLocating(false);
+      },
+      () => { setLocating(false); },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  }, [step]);
+
+  // ─── Manual GPS fallback button ───────────────────────────────────────────
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser.');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setLocation(latLng(coords.latitude, coords.longitude));
+        setLocating(false);
+        toast.success('Current location detected!');
+      },
+      () => {
+        toast.error('Could not get your location. Please select manually.');
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
   // ─── Step 2: Submit report ────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!location) { toast.error('Please select a location on the map.'); return; }
     if (!description.trim()) { toast.error('Please add a description.'); return; }
-    if (!imageFile) { toast.error('Image missing — please go back.'); return; }
+    if (!aiResult) { toast.error('AI result missing — please go back.'); return; }
+    if (!imageUrl) { toast.error('Image upload failed — please go back and re-upload.'); return; }
 
     setSubmitting(true);
     try {
-      const fd = new FormData();
-      fd.append('image', imageFile);
-      fd.append('description', description);
-      fd.append('lat', String(location.lat));
-      fd.append('lng', String(location.lng));
-
-      await reportsAPI.create(fd);
+      await reportsAPI.create({
+        image_url: imageUrl,
+        aiResult: {
+          damage_type: aiResult.damageType,
+          severity_score: aiResult.severityScore,
+          priority_score: aiResult.priorityScore,
+          confidence: aiResult.confidence,
+        },
+        description,
+        lat: location.lat,
+        lng: location.lng,
+        categoryByUser: category,
+      });
       toast.success('Report submitted successfully!');
       navigate('/dashboard');
     } catch (err: any) {
@@ -384,11 +440,24 @@ const ReportIssue: React.FC = () => {
 
                 {/* Map location picker */}
                 <div>
-                  <label className="flex items-center gap-2 text-xs font-display uppercase tracking-widest text-gray-400 mb-2">
-                    <MapPin size={12} className="text-amber" />
-                    Select Location on Map *
-                  </label>
-                  <p className="text-xs text-gray-600 mb-2">Click on the map to pin the exact issue location.</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="flex items-center gap-2 text-xs font-display uppercase tracking-widest text-gray-400">
+                      <MapPin size={12} className="text-amber" />
+                      Select Location on Map *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleUseCurrentLocation}
+                      disabled={locating}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-amber/30 bg-amber/10 text-amber hover:bg-amber/20 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {locating
+                        ? <><div className="spinner w-3 h-3 border-2" /> Detecting...</>
+                        : <><Navigation size={12} /> Use Current Location</>
+                      }
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-600 mb-2">Click on the map to pin the exact location, or use your current location.</p>
 
                   <MapContainer
                     center={[19.09, 74.74]}
@@ -400,6 +469,7 @@ const ReportIssue: React.FC = () => {
                       attribution='&copy; OpenStreetMap contributors'
                     />
                     <LocationPicker onPick={setLocation} />
+                    <FlyToLocation position={location} />
                     {location && <Marker position={location} />}
                   </MapContainer>
 
