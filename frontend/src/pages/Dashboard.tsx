@@ -29,10 +29,10 @@ const ACTIVITY_DATA = [
 ];
 
 const SEVERITY_DATA = [
-  { name: 'Critical', value: 18,  color: '#EF4444' },
-  { name: 'High',     value: 67,  color: '#F97316' },
-  { name: 'Medium',   value: 142, color: '#F59E0B' },
-  { name: 'Low',      value: 120, color: '#22C55E' },
+  { name: 'Critical', value: 18, color: '#EF4444' },
+  { name: 'High', value: 67, color: '#F97316' },
+  { name: 'Medium', value: 142, color: '#F59E0B' },
+  { name: 'Low', value: 120, color: '#22C55E' },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -67,12 +67,12 @@ const StatCard: React.FC<StatCardProps> = ({
   label, value, icon: Icon, accent, delta, deltaUp, suffix = '', gradient,
 }) => {
   const colorMap: Record<string, { bg: string; border: string; text: string; glow: string }> = {
-    amber:  { bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   text: 'text-amber-400',   glow: 'shadow-amber-500/20' },
-    red:    { bg: 'bg-red-500/10',     border: 'border-red-500/20',     text: 'text-red-400',     glow: 'shadow-red-500/20' },
-    green:  { bg: 'bg-green-500/10',   border: 'border-green-500/20',   text: 'text-green-400',   glow: 'shadow-green-500/20' },
-    cyan:   { bg: 'bg-cyan-500/10',    border: 'border-cyan-500/20',    text: 'text-cyan-400',    glow: 'shadow-cyan-500/20' },
-    purple: { bg: 'bg-purple-500/10',  border: 'border-purple-500/20',  text: 'text-purple-400',  glow: 'shadow-purple-500/20' },
-    blue:   { bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    text: 'text-blue-400',    glow: 'shadow-blue-500/20' },
+    amber: { bg: 'bg-amber-500/10', border: 'border-amber-500/20', text: 'text-amber-400', glow: 'shadow-amber-500/20' },
+    red: { bg: 'bg-red-500/10', border: 'border-red-500/20', text: 'text-red-400', glow: 'shadow-red-500/20' },
+    green: { bg: 'bg-green-500/10', border: 'border-green-500/20', text: 'text-green-400', glow: 'shadow-green-500/20' },
+    cyan: { bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', text: 'text-cyan-400', glow: 'shadow-cyan-500/20' },
+    purple: { bg: 'bg-purple-500/10', border: 'border-purple-500/20', text: 'text-purple-400', glow: 'shadow-purple-500/20' },
+    blue: { bg: 'bg-blue-500/10', border: 'border-blue-500/20', text: 'text-blue-400', glow: 'shadow-blue-500/20' },
   };
   const c = colorMap[accent] ?? colorMap.amber;
 
@@ -86,11 +86,10 @@ const StatCard: React.FC<StatCardProps> = ({
           <Icon size={18} className={c.text} />
         </div>
         {delta && (
-          <span className={`text-xs font-mono px-2 py-0.5 rounded-full border ${
-            deltaUp
-              ? 'text-green-400 bg-green-500/10 border-green-500/20'
-              : 'text-red-400 bg-red-500/10 border-red-500/20'
-          }`}>
+          <span className={`text-xs font-mono px-2 py-0.5 rounded-full border ${deltaUp
+            ? 'text-green-400 bg-green-500/10 border-green-500/20'
+            : 'text-red-400 bg-red-500/10 border-red-500/20'
+            }`}>
             {deltaUp ? '↑' : '↓'} {delta}
           </span>
         )}
@@ -110,17 +109,46 @@ const StatCard: React.FC<StatCardProps> = ({
 
 // ─── Report Mini-Card ─────────────────────────────────────────────────────────
 const ReportCard: React.FC<{ report: BackendReport; index: number }> = ({ report, index }) => {
-  const [upvoted, setUpvoted] = useState(false);
+  const [upvoted, setUpvoted] = useState<boolean | null>(null);
   const [count, setCount] = useState(report.upvote_count ?? 0);
   const sev = severityFromScore(report.severity_score);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchStatus = async () => {
+      try {
+        const res = await upvoteAPI.getStatus(report.id);
+        if (mounted) {
+          setUpvoted(res.data.upvoted);
+        }
+      } catch {
+        setUpvoted(false); // fallback
+      }
+    };
+    fetchStatus();
+    return () => {
+      mounted = false;
+    };
+  }, [report.id]);
+
   const handleUpvote = async (e: React.MouseEvent) => {
     e.preventDefault();
+
+    if (upvoted === null) return; // not ready yet
+
     try {
+      const next = !upvoted;
+
+      setUpvoted(next);
+      setCount(c => (next ? c + 1 : Math.max(0, c - 1)));
+
       await upvoteAPI.toggle(report.id);
-      setUpvoted(p => !p);
-      setCount(p => upvoted ? p - 1 : p + 1);
     } catch {
+      // rollback
+      setUpvoted(prev => !prev);
+      setCount(c => (upvoted ? c + 1 : Math.max(0, c - 1)));
+
       toast.error('Login required to upvote.');
     }
   };
@@ -171,11 +199,11 @@ const ReportCard: React.FC<{ report: BackendReport; index: number }> = ({ report
       <div className="flex items-center justify-between pt-2 border-t border-border">
         <button
           onClick={handleUpvote}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-all ${
-            upvoted
-              ? 'bg-amber/10 border-amber/30 text-amber'
-              : 'bg-bg-elevated border-border text-gray-400 hover:border-amber/20'
-          }`}
+          disabled={upvoted === null}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-all ${upvoted
+            ? 'bg-amber/10 border-amber/30 text-amber'
+            : 'bg-bg-elevated border-border text-gray-400 hover:border-amber/20'
+            }`}
         >
           <ThumbsUp size={12} className={upvoted ? 'fill-amber' : ''} />
           {count} Upvote{count !== 1 ? 's' : ''}
@@ -205,10 +233,10 @@ const Dashboard: React.FC = () => {
   };
 
   // Derived stats from real reports
-  const totalIssues   = reports.length;
-  const openIssues    = reports.filter(r => !r.status || r.status === 'open').length;
+  const totalIssues = reports.length;
+  const openIssues = reports.filter(r => !r.status || r.status === 'open').length;
   const criticalCount = reports.filter(r => r.severity_score >= 80).length;
-  const avgPriority   = totalIssues
+  const avgPriority = totalIssues
     ? Math.round(reports.reduce((s, r) => s + r.priority_score, 0) / totalIssues)
     : 0;
 
@@ -257,20 +285,20 @@ const Dashboard: React.FC = () => {
         {/* ── Stats Grid ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
-            label="Total Reports"      value={totalIssues}   icon={AlertTriangle}
-            accent="amber"  gradient="bg-amber-500"
+            label="Total Reports" value={totalIssues} icon={AlertTriangle}
+            accent="amber" gradient="bg-amber-500"
           />
           <StatCard
-            label="Open Issues"        value={openIssues}    icon={Clock}
-            accent="red"    delta="Live" deltaUp={false}
+            label="Open Issues" value={openIssues} icon={Clock}
+            accent="red" delta="Live" deltaUp={false}
           />
           <StatCard
-            label="Critical"           value={criticalCount} icon={Zap}
+            label="Critical" value={criticalCount} icon={Zap}
             accent="red"
           />
           <StatCard
-            label="Avg Priority Score" value={avgPriority}   icon={TrendingUp}
-            accent="cyan"   suffix="/100"
+            label="Avg Priority Score" value={avgPriority} icon={TrendingUp}
+            accent="cyan" suffix="/100"
           />
         </div>
 
@@ -291,11 +319,11 @@ const Dashboard: React.FC = () => {
               <AreaChart data={ACTIVITY_DATA} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <defs>
                   <linearGradient id="gradReported" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%"   stopColor="#F97316" stopOpacity={0.3} />
+                    <stop offset="0%" stopColor="#F97316" stopOpacity={0.3} />
                     <stop offset="100%" stopColor="#F97316" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="gradResolved" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%"   stopColor="#06B6D4" stopOpacity={0.3} />
+                    <stop offset="0%" stopColor="#06B6D4" stopOpacity={0.3} />
                     <stop offset="100%" stopColor="#06B6D4" stopOpacity={0} />
                   </linearGradient>
                 </defs>
@@ -304,7 +332,7 @@ const Dashboard: React.FC = () => {
                 <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} />
                 <Tooltip content={<CustomTooltip />} />
                 <Area type="monotone" dataKey="reported" name="Reported" stroke="#F97316" strokeWidth={2} fill="url(#gradReported)" />
-                <Area type="monotone" dataKey="resolved"  name="Resolved"  stroke="#06B6D4" strokeWidth={2} fill="url(#gradResolved)" />
+                <Area type="monotone" dataKey="resolved" name="Resolved" stroke="#06B6D4" strokeWidth={2} fill="url(#gradResolved)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -354,8 +382,8 @@ const Dashboard: React.FC = () => {
                 <XAxis dataKey="name" tick={{ fill: '#6B7280', fontSize: 10 }} />
                 <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} domain={[0, 100]} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="priority"  name="Priority"  fill="#F97316" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="severity" name="Severity" fill="#EF4444"  radius={[4, 4, 0, 0]} />
+                <Bar dataKey="priority" name="Priority" fill="#F97316" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="severity" name="Severity" fill="#EF4444" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

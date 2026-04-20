@@ -78,7 +78,7 @@ export const reportsAPI = {
 
   /** PATCH /reports/:id/status  (needs backend endpoint) */
   updateStatus: (id: string | number, status: string) =>
-    api.patch(`/reports/${id}/status`, { status }),
+    api.patch(`/report/${id}/status`, { status,  }),
 };
 
 // ─── Upvotes (/upvote/:reportId) ─────────────────────────────────────────────
@@ -87,11 +87,11 @@ export const upvoteAPI = {
   toggle: (reportId: string | number) => api.post(`/upvote/${reportId}`),
 
   /** Get count — GET /upvote/:reportId/count */
-  getCount: (reportId: string | number) =>
+  getCount: (reportId: string) =>
     api.get<{ count: number }>(`/upvote/${reportId}/count`),
 
   /** Check if current user upvoted — GET /upvote/:reportId/status */
-  getStatus: (reportId: string | number) =>
+  getStatus: (reportId: string) =>
     api.get<{ upvoted: boolean }>(`/upvote/${reportId}/status`),
 };
 
@@ -133,16 +133,16 @@ export const adminAPI = {
   getUsers: () =>
     api.get<ApiResponse<User[]>>('/admin/users'),
 
-  deleteReport: (id: string | number) => api.delete(`/reports/${id}`),
+  deleteReport: (id: string) => api.delete(`/report/${id}`),
 
-  deleteUser: (userId: string) => api.delete(`/admin/users/${userId}`),
+  deleteUser: (userId: string) => api.delete(`/admin/delete-user/${userId}`),
 
   updateReportStatus: (id: string | number, status: string) =>
-    api.patch(`/reports/${id}/status`, { status }),
+    api.patch(`/admin/report/${id}/status`, { status }),
 
   /** POST /admin/reports/:id/feedback — send feedback email to reporter */
   sendFeedback: (reportId: string | number, message: string) =>
-    api.post(`/admin/reports/${reportId}/feedback`, { message }),
+    api.post(`/admin/report/${reportId}/feedback`, { message }),
 };
 
 // ─── Disputes (/reports/:id/dispute) ─────────────────────────────────────────

@@ -45,7 +45,7 @@ const signup = async function (req, res) {
         }
         await User.create({ username, email, password });
 
-        if (EMAIL_ENABLED == "true") {
+        if (EMAIL_ENABLED) {
             emailQueue.add({
                 type: "SIGNUP",
                 data: {

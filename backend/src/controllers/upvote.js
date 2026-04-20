@@ -5,23 +5,42 @@ const toggleUpvote = async (req, res) => {
     const user_id = req.user._id;
 
     try {
-        // check if the user has already upvoted
-        const checkQuery = 'SELECT * FROM upvotes WHERE report_id = $1 AND user_id = $2';
-        const checkResult = await pool.query(checkQuery, [report_id, user_id]);
-
-        if(checkResult.rows.length > 0) {
-            // if upvote exists, remove it (toggle off)
-            const deleteQuery = 'DELETE FROM upvotes WHERE report_id = $1 AND user_id = $2';
-            await pool.query(deleteQuery, [report_id, user_id]);
-            res.json({ message: 'Upvote removed' });
+        let increment = 0;
+        await pool.query("BEGIN");
+        const insertResult = await pool.query(
+            `INSERT INTO upvotes (report_id, user_id)
+             VALUES ($1, $2)
+             ON CONFLICT DO NOTHING
+             RETURNING *`,
+            [report_id, user_id]
+        );
+        if (insertResult.rows.length > 0) increment = 1;
+        else{
+            await pool.query(
+                `DELETE FROM upvotes
+                 WHERE report_id = $1 AND user_id = $2`,
+                [report_id, user_id]
+            );
+            increment = -1;
         }
 
-        // if no upvote exists, add it (toggle on)
-        const insertQuery = 'INSERT INTO upvotes (report_id, user_id) VALUES ($1, $2)';
-        await pool.query(insertQuery, [report_id, user_id]);
-        res.json({ message: 'Upvote added' });
+        await pool.query(
+            `UPDATE reports
+            SET 
+                upvote_count = upvote_count + $2,
+                priority_score = severity_score * 0.7 
+                               + LOG(upvote_count + $2 + 1) * 0.3
+            WHERE id = $1 AND upvote_count + $2 >= 0
+            `,
+            [report_id, increment]
+        );
+
+        await pool.query('COMMIT');
+
+        res.json({message: increment === 1 ? 'Upvote added' : 'Upvote removed'});
     }
     catch (error) {
+        await pool.query('ROLLBACK');
         res.status(500).json({ error: error.message });
     }
 };
@@ -30,8 +49,8 @@ const getUpvoteCount = async (req, res) => {
     const { reportId } = req.params;
 
     try {
-        const result = await pool.query(`SELECT COUNT(*) FROM upvotes WHERE report_id = $1`,[reportId]);
-        res.status(200).json({reportId, upvotes: parseInt(result.rows[0].count)});
+        const result = await pool.query(`SELECT upvote_count FROM reports WHERE report_id = $1`,[reportId]);
+        res.status(200).json({reportId, upvotes: parseInt(result.rows[0].upvote_count)});
     } 
     catch (error) {
         res.status(500).json({ error: error.message });

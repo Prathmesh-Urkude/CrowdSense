@@ -1,8 +1,8 @@
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import User from "../models/user.js";
-import { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } from "../configs/env.js";
-import { sendSignUpEmail } from "../utils/mailService.js";
+import { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, EMAIL_ENABLED } from "../configs/env.js";
+import { emailQueue } from "../configs/emailQueue.js";
 
 passport.use(
   new GoogleStrategy(
@@ -40,8 +40,19 @@ passport.use(
             provider: "google"
           });
 
-          sendSignUpEmail(user.email, user.username)
-          .catch(err => console.error("Failed to send signup email:", err));
+          if (EMAIL_ENABLED) {
+            emailQueue.add({
+              type: "SIGNUP",
+              data: {
+                to: user.email,
+                name: user.username,
+              }
+            },
+              {
+                attempts: 3,
+                backoff: 30000,
+              });
+          }
         }
 
         return done(null, user);

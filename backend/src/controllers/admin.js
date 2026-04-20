@@ -54,6 +54,7 @@ export const updateReportStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const { status, remark } = req.body;
+        const safeRemark = remark?.trim() || "No remarks provided";
 
         const current = await pool.query(
             `SELECT * FROM reports WHERE id = $1`,
@@ -78,7 +79,7 @@ export const updateReportStatus = async (req, res) => {
             updated_at = CURRENT_TIMESTAMP
             WHERE id = $3
             RETURNING *`,
-            [status, req.user.id, id]
+            [status, req.user._id, id]
         );
 
         if (result.rows.length === 0) {
@@ -86,7 +87,7 @@ export const updateReportStatus = async (req, res) => {
         }
 
         const updatedReport = result.rows[0];
-        const userData = await User.findById(updatedReport.createdBy);
+        const userData = await User.findById(updatedReport.created_by);
         if (userData && !userData.isDeleted) {
             const emailData = {
                 to: userData.email,
@@ -95,13 +96,13 @@ export const updateReportStatus = async (req, res) => {
                 description: updatedReport.description,
                 previousStatus: currentReport.status,
                 newStatus: status,
-                remark,
+                remark: safeRemark,
                 location: updatedReport.location || "Not specified",
                 updatedBy: req.user.username || "Authority",
                 updatedAt: new Date().toLocaleString("en-IN"),
             };
 
-            if (EMAIL_ENABLED == "true") {
+            if (EMAIL_ENABLED) {
                 emailQueue.add({
                     type: "STATUS_UPDATE",
                     data: emailData,
@@ -153,3 +154,13 @@ export const deleteReport = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+
+export const getAllUsers = async (req, res) => {
+    try {
+        const users = await User.find({ isDeleted: false });
+        res.json({ users });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+}
