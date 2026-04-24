@@ -28,8 +28,11 @@ const toggleUpvote = async (req, res) => {
             `UPDATE reports
             SET 
                 upvote_count = upvote_count + $2,
-                priority_score = severity_score * 0.7 
-                               + LOG(upvote_count + $2 + 1) * 0.3
+                priority_score = 0.7 * (severity_score / 12) 
+                               + 0.3 * (
+                                    LOG(upvote_count + $2 + 1) / 
+                                    (LOG(upvote_count + $2 + 1) + 1)
+                                )
             WHERE id = $1 AND upvote_count + $2 >= 0
             `,
             [report_id, increment]
