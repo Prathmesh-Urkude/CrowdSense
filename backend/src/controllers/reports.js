@@ -110,3 +110,29 @@ export const postReportFeedback = async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 };
+
+export const handleSimilarReports = async (req, res) => {
+    const { lat, lng, category } = req.body;
+
+    const query = `
+        SELECT id, category, status, image_url, created_at, ST_Distance(Location::geography, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) AS distance
+        FROM reports
+        WHERE status = 'reported' OR status = 'under-review'
+        AND ST_DWithin(location, ST_SetSRID(ST_MakePoint($1, $2), 4326), 50)
+        AND category = $3
+        ORDER BY distance ASC
+        LIMIT 5
+    `;
+
+    try {
+        const results = await pool.query(query, [lng, lat, category]);
+        if(results.rowCount == 0) {
+            return res.status(200).json({ message: "No similar reports found" });
+        }
+        res.status(200).json(results.rows);
+    }
+    catch (error) {
+        console.error('Error checking similar reports:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};

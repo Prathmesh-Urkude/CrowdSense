@@ -1,5 +1,5 @@
 import express from 'express';
-import { postReport, getAllReports, getReportById, getReportsByUserId, postReportFeedback } from '../controllers/reports.js';
+import { postReport, getAllReports, getReportById, getReportsByUserId, postReportFeedback, handleSimilarReports } from '../controllers/reports.js';
 
 const router = express.Router();
 
@@ -11,5 +11,7 @@ router.get('/:reportId', getReportById);
 
 router.get('/user', getReportsByUserId);
 router.post('/user/:reportId/feedback', postReportFeedback);
+
+router.post('/check-report', handleSimilarReports);
 
 export default router;
