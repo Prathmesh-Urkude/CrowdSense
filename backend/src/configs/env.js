@@ -33,7 +33,7 @@ export const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 // SendGrid Configuration
 export const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;   
 export const EMAIL_FROM = process.env.EMAIL_FROM;
-export const EMAIL_ENABLED = process.env.EMAIL_ENABLED === "true";
+export const EMAIL_ENABLED = process.env.EMAIL_ENABLED;
 
 // Redis Configuration
 export const REDIS_HOST = process.env.REDIS_HOST || "localhost";

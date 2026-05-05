@@ -361,7 +361,7 @@ const UsersTab: React.FC = () => {
   useEffect(() => {
     adminAPI.getUsers()
       .then(res => {
-        const data = (res.data as any)?.data ?? res.data;
+        const data = (res.data as any)?.users ?? [];
         if (Array.isArray(data)) {
           setUsers(data.map((u: any) => ({
             id: u._id ?? u.id,
@@ -544,7 +544,7 @@ const ReportsTab: React.FC = () => {
 
   const updateStatus = async (report: BackendReport, status: string) => {
     try {
-      await reportsAPI.updateStatus(report.id, status);
+      await adminAPI.updateReportStatus(report.id, status);
       setReports(p => p.map(r => r.id === report.id ? { ...r, status } : r));
       toast.success(`Status updated to "${status.replace('_', ' ')}"`);
     } catch (err: any) {

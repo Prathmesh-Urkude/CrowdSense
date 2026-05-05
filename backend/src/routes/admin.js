@@ -1,5 +1,5 @@
 import express from 'express';
-import { createAdmin, deleteUser, updateReportStatus, deleteReport } from '../controllers/admin.js';
+import { createAdmin, deleteUser, updateReportStatus, deleteReport, getAllUsers } from '../controllers/admin.js';
 import { serverAdapter } from '../configs/bullBoard.js';
 
 const router = express.Router();
@@ -10,6 +10,8 @@ router.get('/', (req, res) => {
     user: req.user   
   });
 });
+
+router.get('/users', getAllUsers);
 
 router.post('/create-admin', createAdmin)
 router.delete('/delete-user/:id', deleteUser);

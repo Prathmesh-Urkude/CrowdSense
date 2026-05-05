@@ -6,7 +6,7 @@ const generateState = () => crypto.randomBytes(32).toString("hex");
 const cookieOptions = {
     httpOnly: true,
     secure: PRODUCTION,
-    sameSite: "Strict"
+    sameSite: "lax",
 };
 
 function hashToken(token) {
