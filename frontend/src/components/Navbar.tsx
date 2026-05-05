@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   MapPin, Bell, Menu, X, ChevronDown, 
   LogOut, User, Settings, LayoutDashboard,
-  AlertTriangle
+  AlertTriangle, FileText,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import clsx from 'clsx';
@@ -168,9 +168,10 @@ const Navbar: React.FC = () => {
                           </span>
                         </div>
                         {[
-                          { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
-                          { icon: User, label: 'Profile', href: '/profile' },
-                          { icon: Settings, label: 'Settings', href: '/settings' },
+                          { icon: LayoutDashboard, label: 'Dashboard',  href: '/dashboard' },
+                          { icon: FileText,        label: 'My Reports', href: '/my-reports' },
+                          { icon: User,            label: 'Profile',    href: '/profile' },
+                          { icon: Settings,        label: 'Settings',   href: '/settings' },
                         ].map(item => (
                           <Link
                             key={item.href}

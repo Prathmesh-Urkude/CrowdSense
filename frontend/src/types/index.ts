@@ -20,20 +20,24 @@ export interface BackendReport {
   id: string;                // UUID from PostgreSQL
   description: string;
   image_url: string | null;
-  location: string;          // PostGIS serialised
+  location?: string;         // PostGIS serialised (not returned by getAllReports)
+  lat?: number;              // returned directly by SQL queries
+  lng?: number;              // returned directly by SQL queries
   created_by: string;        // MongoDB user _id
   category: string;
   severity_score: number;
   priority_score: number;
   created_at: string;
   updated_at?: string;
-  status?: string;           // 'pending' | 'open' | 'in_progress' | 'resolved' | 'closed'
+  updated_by?: string;
+  status?: string;
   upvote_count?: number;
+  remarks?: string;
 }
 
 // ─── Issue Types ──────────────────────────────────────────────────────────────
 export type SeverityLevel = 'low' | 'medium' | 'high' | 'critical';
-export type IssueStatus   = 'pending' | 'open' | 'in_progress' | 'resolved' | 'closed';
+export type IssueStatus   = 'pending' | 'reported' | 'under-review' | 'assigned' | 'open' | 'in_progress' | 'resolved' | 'closed' | 'rejected';
 export type IssueCategory =
   | 'pothole' | 'crack' | 'waterlogging'
   | 'broken_divider' | 'damaged_footpath' | 'other';

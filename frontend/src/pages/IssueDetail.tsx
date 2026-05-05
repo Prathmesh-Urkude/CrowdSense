@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   ArrowLeft, MapPin, ThumbsUp, MessageCircle, Clock,
   Share2, CheckCircle2, Zap, BarChart3,
-  DollarSign, Activity, Brain, AlertTriangle, X,
+  Activity, Brain, AlertTriangle, X, Star,
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import { SeverityBadge, StatusBadge, PriorityRing, SeverityBar } from '../components/SeverityBadge';
@@ -17,6 +17,66 @@ import type { BackendReport } from '../types';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const severityFromScore = (score: number): 'critical' | 'high' | 'medium' | 'low' =>
   score >= 80 ? 'critical' : score >= 60 ? 'high' : score >= 40 ? 'medium' : 'low';
+
+// ─── Feedback Form ────────────────────────────────────────────────────────────
+const FeedbackForm: React.FC<{ reportId: string; onDone: () => void }> = ({ reportId, onDone }) => {
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async () => {
+    if (rating === 0) { toast.error('Please select a rating.'); return; }
+    setSubmitting(true);
+    try {
+      await reportsAPI.submitFeedback(reportId, rating, comment);
+      toast.success('Thank you for your feedback!');
+      onDone();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error ?? 'Failed to submit feedback.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="cs-card p-5 border-green-500/20 bg-green-500/5"
+    >
+      <div className="flex items-center gap-2 mb-4">
+        <CheckCircle2 size={16} className="text-green-400" />
+        <h3 className="font-display text-base font-bold text-white uppercase tracking-wide">
+          Issue Resolved — Share Your Feedback
+        </h3>
+      </div>
+      <p className="text-sm text-gray-400 mb-4">
+        How satisfied are you with the resolution of this issue?
+      </p>
+      <div className="flex gap-2 mb-4">
+        {[1, 2, 3, 4, 5].map(n => (
+          <button key={n} onClick={() => setRating(n)} className="transition-transform hover:scale-110">
+            <Star size={28} className={n <= rating ? 'fill-amber text-amber' : 'text-gray-600'} />
+          </button>
+        ))}
+      </div>
+      <textarea
+        rows={3}
+        value={comment}
+        onChange={e => setComment(e.target.value)}
+        placeholder="Tell us more about the resolution (optional)..."
+        className="cs-input w-full px-4 py-2.5 rounded-xl text-sm resize-none mb-4"
+      />
+      <button
+        onClick={submit}
+        disabled={submitting || rating === 0}
+        className="btn-primary w-full py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-40"
+      >
+        {submitting ? <><div className="spinner w-4 h-4 border-2" /> Submitting...</> : 'Submit Feedback'}
+      </button>
+    </motion.div>
+  );
+};
 
 // ─── IssueDetail ──────────────────────────────────────────────────────────────
 const IssueDetail: React.FC = () => {
@@ -35,16 +95,15 @@ const IssueDetail: React.FC = () => {
   const [comment, setComment] = useState('');
   const [comments, setComments] = useState<{ id: string; text: string; author: string; role: string; createdAt: string }[]>([]);
 
+  const [feedbackDone, setFeedbackDone] = useState(false);
+
   // ── Load report ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!id) return;
-
-    // Backend has no GET /reports/:id yet — fetch all and find by id
-    reportsAPI.getAll()
+    reportsAPI.getById(id)
       .then(res => {
-        const list: BackendReport[] = Array.isArray(res.data) ? res.data : [];
-        const found = list.find(r => String(r.id) === String(id));
-        setReport(found ?? null);
+        const data = res.data as any;
+        setReport(data?.report ?? data);
       })
       .catch(() => setReport(null))
       .finally(() => setLoading(false));
@@ -153,19 +212,16 @@ const IssueDetail: React.FC = () => {
   const severity = severityFromScore(report.severity_score);
   const status = (report.status as any) ?? 'open';
 
-  // Parse location from PostGIS if available
-  let lat: number | null = null;
-  let lng: number | null = null;
-  try {
-    if (typeof report.location === 'string') {
-      // PostGIS returns something like "0101000020E6100000..."
-      // Real lat/lng not extractable from binary without postgis client
-    } else if (report.location && typeof report.location === 'object') {
-      const loc = report.location as any;
-      lat = loc.lat ?? loc.coordinates?.[1] ?? null;
-      lng = loc.lng ?? loc.coordinates?.[0] ?? null;
-    }
-  } catch { /* ignore */ }
+  const lat = report.lat ?? null;
+  const lng = report.lng ?? null;
+
+  const STATUS_FLOW = ['reported', 'under-review', 'assigned', 'in_progress', 'resolved'];
+  const STATUS_ORDER: Record<string, number> = Object.fromEntries(STATUS_FLOW.map((s, i) => [s, i]));
+  const currentStep = STATUS_ORDER[status] ?? -1;
+  const isRejected = status === 'rejected';
+  const isResolved = status === 'resolved' || status === 'closed';
+  const isOwnReport = user && report.created_by === user.id;
+  const showFeedback = isResolved && isOwnReport && !feedbackDone;
 
   return (
     <div className="min-h-screen pt-16 bg-grid noise">
@@ -189,10 +245,10 @@ const IssueDetail: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-2 mb-3">
                     <SeverityBadge severity={severity} size="md" />
                     <StatusBadge status={status} />
-                    <span className="text-xs font-mono text-gray-500">#{report.id}</span>
+                    <span className="text-xs font-mono text-gray-500">#{report.id.slice(-8)}</span>
                   </div>
                   <h1 className="font-display text-3xl font-black text-white leading-tight">
-                    {report.category?.replace('_', ' ').toUpperCase() || 'ROAD DAMAGE REPORT'}
+                    {report.category?.replace(/_/g, ' ').toUpperCase() || 'ROAD DAMAGE REPORT'}
                   </h1>
                 </div>
                 <PriorityRing score={report.priority_score} size={72} />
@@ -211,7 +267,7 @@ const IssueDetail: React.FC = () => {
                 </span>
                 <span className="flex items-center gap-1.5 capitalize">
                   <MapPin size={13} className="text-amber" />
-                  {report.category?.replace('_', ' ') || 'Unknown category'}
+                  {report.category?.replace(/_/g, ' ') || 'Unknown category'}
                 </span>
                 {/* Reporter name:
                     - Own report  → show own name
@@ -285,37 +341,61 @@ const IssueDetail: React.FC = () => {
             {/* Status Timeline */}
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="cs-card p-5">
               <h3 className="font-display text-base font-bold text-white uppercase tracking-wide mb-5">Resolution Timeline</h3>
-              <div className="relative">
-                <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-border" />
-                <div className="space-y-5">
-                  {[
-                    { label: 'Reported',        done: true,                                       active: false },
-                    { label: 'AI Analysed',     done: true,                                       active: false },
-                    { label: 'Under Review',    done: status !== 'open',                          active: status === 'open' },
-                    { label: 'In Progress',     done: status === 'resolved' || status === 'closed', active: status === 'in_progress' },
-                    { label: 'Resolved',        done: status === 'resolved' || status === 'closed', active: false },
-                  ].map((step, i) => (
-                    <div key={step.label} className="flex items-center gap-4 relative pl-10">
-                      <div className={`absolute left-0 w-8 h-8 rounded-full border-2 flex items-center justify-center z-10 transition-all ${
-                        step.done
-                          ? 'bg-amber border-amber text-white'
-                          : step.active
-                            ? 'bg-bg-card border-amber text-amber animate-pulse'
-                            : 'bg-bg-card border-border text-gray-600'
-                      }`}>
-                        {step.done ? <CheckCircle2 size={14} /> : <span className="text-xs font-bold">{i + 1}</span>}
-                      </div>
-                      <div className="flex-1">
-                        <p className={`text-sm font-semibold ${step.done || step.active ? 'text-white' : 'text-gray-500'}`}>
-                          {step.label}
-                          {step.active && <span className="ml-2 text-xs text-amber font-normal animate-pulse">● Current</span>}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+              {isRejected ? (
+                <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                  <AlertTriangle size={18} className="text-red-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-red-300">Report Rejected</p>
+                    {report.remarks && <p className="text-xs text-gray-400 mt-0.5">{report.remarks}</p>}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="relative">
+                  <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-border" />
+                  <div className="space-y-5">
+                    {STATUS_FLOW.map((step, i) => {
+                      const done = currentStep > i;
+                      const active = currentStep === i;
+                      const label = step.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                      return (
+                        <div key={step} className="flex items-center gap-4 relative pl-10">
+                          <div className={`absolute left-0 w-8 h-8 rounded-full border-2 flex items-center justify-center z-10 transition-all ${
+                            done
+                              ? 'bg-amber border-amber text-white'
+                              : active
+                                ? 'bg-bg-card border-amber text-amber animate-pulse'
+                                : 'bg-bg-card border-border text-gray-600'
+                          }`}>
+                            {done ? <CheckCircle2 size={14} /> : <span className="text-xs font-bold">{i + 1}</span>}
+                          </div>
+                          <div className="flex-1">
+                            <p className={`text-sm font-semibold ${done || active ? 'text-white' : 'text-gray-500'}`}>
+                              {label}
+                              {active && <span className="ml-2 text-xs text-amber font-normal animate-pulse">● Current</span>}
+                            </p>
+                            {i === 0 && (
+                              <p className="text-xs text-gray-600 mt-0.5">
+                                {new Date(report.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </p>
+                            )}
+                            {done && report.updated_at && i === currentStep - 1 && (
+                              <p className="text-xs text-gray-600 mt-0.5">
+                                {new Date(report.updated_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </motion.div>
+
+            {/* Feedback form — resolved reports, shown to the reporter */}
+            {showFeedback && (
+              <FeedbackForm reportId={report.id} onDone={() => setFeedbackDone(true)} />
+            )}
 
             {/* Comments */}
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="cs-card p-5">
@@ -392,7 +472,7 @@ const IssueDetail: React.FC = () => {
                 <div>
                   <SeverityBadge severity={severity} size="md" />
                   <p className="text-sm font-bold text-white mt-1 capitalize">
-                    {report.category?.replace('_', ' ') || 'Road Damage'}
+                    {report.category?.replace(/_/g, ' ') || 'Road Damage'}
                   </p>
                 </div>
               </div>
@@ -404,9 +484,8 @@ const IssueDetail: React.FC = () => {
 
               <div className="space-y-2 text-xs">
                 {[
-                  { icon: BarChart3,  label: 'Severity Score', val: `${report.severity_score}/100` },
-                  { icon: DollarSign, label: 'Priority Score',  val: `${report.priority_score}/100` },
-                  { icon: Clock,      label: 'SLA Target',      val: severity === 'critical' ? '< 24 h' : severity === 'high' ? '< 48 h' : '< 7 days' },
+                  { icon: BarChart3, label: 'Severity Score', val: `${Math.round(report.severity_score)}/100` },
+                  { icon: Clock,     label: 'SLA Target',     val: severity === 'critical' ? '< 24 h' : severity === 'high' ? '< 48 h' : '< 7 days' },
                 ].map(s => (
                   <div key={s.label} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
                     <span className="flex items-center gap-1.5 text-gray-500"><s.icon size={12} />{s.label}</span>
@@ -426,8 +505,8 @@ const IssueDetail: React.FC = () => {
                 <>
                   <MapContainer
                     center={[lat, lng]}
-                    zoom={14}
-                    style={{ height: '160px', borderRadius: '12px', border: '1px solid #1E293B' }}
+                    zoom={15}
+                    style={{ height: '180px', borderRadius: '12px', border: '1px solid #1E293B' }}
                     scrollWheelZoom={false}
                     dragging={false}
                     zoomControl={false}
@@ -453,7 +532,7 @@ const IssueDetail: React.FC = () => {
                     <div className="w-10 h-10 bg-amber/20 border-2 border-amber rounded-full flex items-center justify-center mx-auto mb-2 animate-pulse-slow">
                       <MapPin size={18} className="text-amber" />
                     </div>
-                    <p className="text-xs text-gray-500">Location data stored as PostGIS</p>
+                    <p className="text-xs text-gray-500">Location not available</p>
                   </div>
                 </div>
               )}
@@ -470,6 +549,11 @@ const IssueDetail: React.FC = () => {
                   {formatDistanceToNow(new Date(report.created_at), { addSuffix: true })}
                 </span>
               </div>
+              {report.updated_at && (
+                <p className="text-xs text-gray-500 mb-2">
+                  Updated {formatDistanceToNow(new Date(report.updated_at), { addSuffix: true })}
+                </p>
+              )}
               <div className="flex items-center gap-2 text-xs text-amber">
                 <Zap size={11} />
                 SLA Target: {severity === 'critical' ? '24 hours' : severity === 'high' ? '48 hours' : '7 days'}
@@ -479,7 +563,7 @@ const IssueDetail: React.FC = () => {
             {/* Upvote CTA */}
             {!upvoted && (
               <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 }} className="cs-card p-4 border-amber/20 bg-amber/5">
-                <p className="text-sm font-semibold text-white mb-1">This issue affect you?</p>
+                <p className="text-sm font-semibold text-white mb-1">This issue affects you?</p>
                 <p className="text-xs text-gray-400 mb-3">
                   Upvote to increase its priority and get it fixed faster.
                 </p>

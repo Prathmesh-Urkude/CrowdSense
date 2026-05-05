@@ -110,17 +110,27 @@ const StatCard: React.FC<StatCardProps> = ({
 
 // ─── Report Mini-Card ─────────────────────────────────────────────────────────
 const ReportCard: React.FC<{ report: BackendReport; index: number }> = ({ report, index }) => {
-  const [upvoted, setUpvoted] = useState(false);
+  const [upvoted, setUpvoted] = useState<boolean | null>(null);
   const [count, setCount] = useState(report.upvote_count ?? 0);
   const sev = severityFromScore(report.severity_score);
 
+  useEffect(() => {
+    upvoteAPI.getStatus(report.id)
+      .then(res => setUpvoted((res.data as any)?.hasUpvoted ?? false))
+      .catch(() => setUpvoted(false));
+  }, [report.id]);
+
   const handleUpvote = async (e: React.MouseEvent) => {
     e.preventDefault();
+    if (upvoted === null) return;
+    const prev = upvoted;
+    setUpvoted(!prev);
+    setCount(p => prev ? p - 1 : p + 1);
     try {
       await upvoteAPI.toggle(report.id);
-      setUpvoted(p => !p);
-      setCount(p => upvoted ? p - 1 : p + 1);
     } catch {
+      setUpvoted(prev);
+      setCount(p => prev ? p + 1 : p - 1);
       toast.error('Login required to upvote.');
     }
   };
@@ -171,7 +181,8 @@ const ReportCard: React.FC<{ report: BackendReport; index: number }> = ({ report
       <div className="flex items-center justify-between pt-2 border-t border-border">
         <button
           onClick={handleUpvote}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-all ${
+          disabled={upvoted === null}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-all disabled:opacity-50 ${
             upvoted
               ? 'bg-amber/10 border-amber/30 text-amber'
               : 'bg-bg-elevated border-border text-gray-400 hover:border-amber/20'
@@ -206,7 +217,7 @@ const Dashboard: React.FC = () => {
 
   // Derived stats from real reports
   const totalIssues   = reports.length;
-  const openIssues    = reports.filter(r => !r.status || r.status === 'open').length;
+  const openIssues    = reports.filter(r => ['reported','under-review','assigned','in_progress','open','pending'].includes(r.status ?? '')).length;
   const criticalCount = reports.filter(r => r.severity_score >= 80).length;
   const avgPriority   = totalIssues
     ? Math.round(reports.reduce((s, r) => s + r.priority_score, 0) / totalIssues)
@@ -344,9 +355,9 @@ const Dashboard: React.FC = () => {
             <ResponsiveContainer width="100%" height={200}>
               <BarChart
                 data={reports.slice(0, 8).map(r => ({
-                  name: `#${r.id}`,
-                  priority: r.priority_score,
-                  severity: r.severity_score,
+                  name: `#${r.id.slice(-6)}`,
+                  priority: Math.round(r.priority_score),
+                  severity: Math.round(r.severity_score),
                 }))}
                 margin={{ top: 5, right: 10, bottom: 0, left: -20 }}
               >
