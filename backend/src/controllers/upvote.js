@@ -27,11 +27,11 @@ const toggleUpvote = async (req, res) => {
         await pool.query(
             `UPDATE reports
             SET 
-                upvote_count = upvote_count + $2,
-                priority_score = 0.7 * (severity_score / 12) 
+                upvote_count = GREATEST(0, upvote_count + $2),
+                priority_score = 0.7 * (severity_score / 15.0) 
                                + 0.3 * (
-                                    LOG((upvote_count + $2) / 5.0 + 1) / 
-                                    (LOG((upvote_count + $2) / 5.0 + 1) + 1)
+                                    LOG(GREATEST(upvote_count + $2, 0) / 5.0 + 1) / 
+                                    (LOG(GREATEST(upvote_count + $2, 0) / 5.0 + 1) + 1)
                                 )
             WHERE id = $1 AND upvote_count + $2 >= 0
             `,

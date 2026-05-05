@@ -115,7 +115,9 @@ export const handleSimilarReports = async (req, res) => {
     const { lat, lng, category } = req.body;
 
     const query = `
-        SELECT id, category, status, image_url, created_at, ST_Distance(Location::geography, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) AS distance
+        SELECT id, category, status, image_url, created_at, 
+        ST_Distance(Location::geography, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) AS distance,
+        ST_Y(location:: geometry) AS lat, ST_X(location:: geometry) AS lng
         FROM reports
         WHERE status = 'reported' OR status = 'under-review'
         AND ST_DWithin(location, ST_SetSRID(ST_MakePoint($1, $2), 4326), 50)

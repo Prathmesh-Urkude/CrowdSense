@@ -32,7 +32,7 @@ async function createReportTable() {
         priority_score FLOAT,
 
         location GEOGRAPHY(Point, 4326), -- PostGIS
-        status VARCHAR(20) DEFAULT 'pending',
+        status VARCHAR(20) DEFAULT 'reported',
 
         created_by VARCHAR NOT NULL, -- MongoDB userId (string)
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
