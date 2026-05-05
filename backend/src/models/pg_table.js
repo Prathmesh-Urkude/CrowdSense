@@ -67,11 +67,36 @@ async function createUpvoteTable() {
     }
 }
 
+async function migrateReportsTable() {
+    const migrations = [
+        `ALTER TABLE reports ADD COLUMN IF NOT EXISTS updated_by VARCHAR`,
+        `ALTER TABLE reports ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP`,
+        `ALTER TABLE reports ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'reported'`,
+        // Fix default for tables that were created with DEFAULT 'pending'
+        `ALTER TABLE reports ALTER COLUMN status SET DEFAULT 'reported'`,
+        // Backfill old rows that got 'pending' before the default was corrected
+        `UPDATE reports SET status = 'reported' WHERE status = 'pending' OR status IS NULL`,
+        // Recalculate priority_score with correct formula (old formula used severity_score/12 which shrunk scores to ~3)
+        `UPDATE reports SET priority_score = 0.7 * severity_score + 0.3 * (LOG(GREATEST(upvote_count,0) + 1) / (LOG(GREATEST(upvote_count,0) + 1) + 1)) * 100 WHERE severity_score IS NOT NULL`,
+        // File fingerprint for cross-session duplicate image detection
+        `ALTER TABLE reports ADD COLUMN IF NOT EXISTS file_fingerprint VARCHAR`,
+    ];
+    for (const sql of migrations) {
+        try {
+            await pool.query(sql);
+        } catch (err) {
+            console.error('Migration error:', err.message);
+        }
+    }
+    console.log("Reports table migrations applied:");
+}
+
 async function initPGTables() {
     await addPostGISExtension();
     await genUUID();
     await createReportTable();
     await createUpvoteTable();
+    await migrateReportsTable();
 }
 
 export { initPGTables };

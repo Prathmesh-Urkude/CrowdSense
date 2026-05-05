@@ -4,8 +4,9 @@ import { motion, useInView } from 'framer-motion';
 import {
   MapPin, Zap, ShieldCheck, BarChart3, ArrowRight,
   Camera, Brain, Bell, CheckCircle2, ChevronRight,
-  AlertTriangle, Clock, Users, TrendingUp
+  AlertTriangle, Clock, Users, TrendingUp, LayoutDashboard,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 // ─── Animated Counter ────────────────────────────────────────────────────────
 const Counter: React.FC<{ value: number; suffix?: string; label: string }> = ({ value, suffix = '', label }) => {
@@ -78,6 +79,8 @@ const Step: React.FC<{ num: string; title: string; desc: string; delay?: number 
 
 // ─── Main Landing Page ────────────────────────────────────────────────────────
 const LandingPage: React.FC = () => {
+  const { isAuthenticated } = useAuth();
+
   return (
     <div className="min-h-screen bg-grid noise">
       {/* ── Hero ── */}
@@ -132,12 +135,23 @@ const LandingPage: React.FC = () => {
                 transition={{ delay: 0.4 }}
                 className="flex flex-wrap gap-3"
               >
-                <Link to="/register" className="btn-primary px-8 py-3.5 rounded-xl text-base flex items-center gap-2 glow-amber">
-                  Get Started Free <ArrowRight size={18} />
-                </Link>
+                {isAuthenticated ? (
+                  <Link to="/dashboard" className="btn-primary px-8 py-3.5 rounded-xl text-base flex items-center gap-2 glow-amber">
+                    <LayoutDashboard size={18} /> Go to Dashboard
+                  </Link>
+                ) : (
+                  <Link to="/register" className="btn-primary px-8 py-3.5 rounded-xl text-base flex items-center gap-2 glow-amber">
+                    Get Started Free <ArrowRight size={18} />
+                  </Link>
+                )}
                 <Link to="/issues" className="btn-secondary px-8 py-3.5 rounded-xl text-base flex items-center gap-2">
                   View Live Map <MapPin size={18} />
                 </Link>
+                {!isAuthenticated && (
+                  <Link to="/login" className="btn-secondary px-8 py-3.5 rounded-xl text-base flex items-center gap-2">
+                    <LayoutDashboard size={18} /> Go to Dashboard
+                  </Link>
+                )}
               </motion.div>
 
               {/* Trust indicators */}

@@ -10,14 +10,14 @@ import {
   MapPin, ArrowRight, TrendingUp, Zap, Filter,
   ThumbsUp, Calendar, Activity,
 } from 'lucide-react';
-import { SeverityBadge, StatusBadge, PriorityRing } from '../components/SeverityBadge';
+import { SeverityBadge, PriorityRing } from '../components/SeverityBadge';
 import { useAuth } from '../context/AuthContext';
 import { reportsAPI, upvoteAPI } from '../utils/api';
 import type { BackendReport } from '../types';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
 
-// ─── Chart mock data (kept as placeholder until backend delivers chart endpoints) ─
+// ─── Chart mock data ──────────────────────────────────────────────────────────
 const ACTIVITY_DATA = [
   { day: 'Mon', reported: 24, resolved: 18 },
   { day: 'Tue', reported: 31, resolved: 22 },
@@ -51,12 +51,12 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-// ─── Stat Card Component ──────────────────────────────────────────────────────
+// ─── Stat Card ────────────────────────────────────────────────────────────────
 interface StatCardProps {
   label: string;
   value: string | number;
   icon: React.ElementType;
-  accent: string;       // tailwind color token e.g. 'amber', 'red', 'green'
+  accent: string;
   delta?: string;
   deltaUp?: boolean;
   suffix?: string;
@@ -67,20 +67,18 @@ const StatCard: React.FC<StatCardProps> = ({
   label, value, icon: Icon, accent, delta, deltaUp, suffix = '', gradient,
 }) => {
   const colorMap: Record<string, { bg: string; border: string; text: string; glow: string }> = {
-    amber:  { bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   text: 'text-amber-400',   glow: 'shadow-amber-500/20' },
-    red:    { bg: 'bg-red-500/10',     border: 'border-red-500/20',     text: 'text-red-400',     glow: 'shadow-red-500/20' },
-    green:  { bg: 'bg-green-500/10',   border: 'border-green-500/20',   text: 'text-green-400',   glow: 'shadow-green-500/20' },
-    cyan:   { bg: 'bg-cyan-500/10',    border: 'border-cyan-500/20',    text: 'text-cyan-400',    glow: 'shadow-cyan-500/20' },
-    purple: { bg: 'bg-purple-500/10',  border: 'border-purple-500/20',  text: 'text-purple-400',  glow: 'shadow-purple-500/20' },
-    blue:   { bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    text: 'text-blue-400',    glow: 'shadow-blue-500/20' },
+    amber:  { bg: 'bg-amber-500/10',  border: 'border-amber-500/20',  text: 'text-amber-400',  glow: 'shadow-amber-500/20' },
+    red:    { bg: 'bg-red-500/10',    border: 'border-red-500/20',    text: 'text-red-400',    glow: 'shadow-red-500/20' },
+    green:  { bg: 'bg-green-500/10',  border: 'border-green-500/20',  text: 'text-green-400',  glow: 'shadow-green-500/20' },
+    cyan:   { bg: 'bg-cyan-500/10',   border: 'border-cyan-500/20',   text: 'text-cyan-400',   glow: 'shadow-cyan-500/20' },
+    purple: { bg: 'bg-purple-500/10', border: 'border-purple-500/20', text: 'text-purple-400', glow: 'shadow-purple-500/20' },
+    blue:   { bg: 'bg-blue-500/10',   border: 'border-blue-500/20',   text: 'text-blue-400',   glow: 'shadow-blue-500/20' },
   };
   const c = colorMap[accent] ?? colorMap.amber;
 
   return (
     <div className={`cs-card p-4 relative overflow-hidden group hover:scale-[1.02] transition-transform duration-200 shadow-lg ${c.glow}`}>
-      {/* Gradient backdrop */}
       <div className={`absolute inset-0 opacity-0 group-hover:opacity-5 transition-opacity duration-300 ${gradient ?? ''}`} />
-
       <div className="flex items-start justify-between mb-3">
         <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${c.bg} ${c.border}`}>
           <Icon size={18} className={c.text} />
@@ -95,14 +93,11 @@ const StatCard: React.FC<StatCardProps> = ({
           </span>
         )}
       </div>
-
       <div className="font-display text-3xl font-black text-white leading-none mb-1">
         {typeof value === 'number' ? value.toLocaleString('en-IN') : value}
         {suffix && <span className="text-base font-bold text-gray-400 ml-1">{suffix}</span>}
       </div>
       <div className="text-xs text-gray-500 font-medium tracking-wide">{label}</div>
-
-      {/* Bottom accent bar */}
       <div className={`absolute bottom-0 left-0 right-0 h-0.5 ${c.bg} opacity-60`} />
     </div>
   );
@@ -110,17 +105,34 @@ const StatCard: React.FC<StatCardProps> = ({
 
 // ─── Report Mini-Card ─────────────────────────────────────────────────────────
 const ReportCard: React.FC<{ report: BackendReport; index: number }> = ({ report, index }) => {
-  const [upvoted, setUpvoted] = useState(false);
+  const [upvoted, setUpvoted] = useState<boolean | null>(null);
   const [count, setCount] = useState(report.upvote_count ?? 0);
   const sev = severityFromScore(report.severity_score);
 
+  useEffect(() => {
+    let mounted = true;
+    upvoteAPI.getStatus(report.id)
+      .then(res => {
+        if (mounted) {
+          const d = res.data as any;
+          setUpvoted(d?.hasUpvoted ?? d?.upvoted ?? false);
+        }
+      })
+      .catch(() => { if (mounted) setUpvoted(false); });
+    return () => { mounted = false; };
+  }, [report.id]);
+
   const handleUpvote = async (e: React.MouseEvent) => {
     e.preventDefault();
+    if (upvoted === null) return;
+    const next = !upvoted;
+    setUpvoted(next);
+    setCount(c => next ? c + 1 : Math.max(0, c - 1));
     try {
       await upvoteAPI.toggle(report.id);
-      setUpvoted(p => !p);
-      setCount(p => upvoted ? p - 1 : p + 1);
     } catch {
+      setUpvoted(!next);
+      setCount(c => next ? Math.max(0, c - 1) : c + 1);
       toast.error('Login required to upvote.');
     }
   };
@@ -130,48 +142,46 @@ const ReportCard: React.FC<{ report: BackendReport; index: number }> = ({ report
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
-      className="cs-card p-4 flex flex-col gap-3 hover:scale-[1.01] transition-transform duration-200"
+      className="cs-card p-4 flex flex-col gap-3 hover:scale-[1.01] hover:border-amber/30 transition-all duration-200 group"
     >
-      {/* Image */}
-      {report.image_url ? (
-        <div className="rounded-xl overflow-hidden h-36 bg-bg-elevated">
-          <img
-            src={`http://localhost:5000${report.image_url}`}
-            alt="report"
-            className="w-full h-full object-cover"
-          />
+      <Link to={`/issues/${report.id}`} className="flex flex-col gap-3 flex-1">
+        {report.image_url ? (
+          <div className="rounded-xl overflow-hidden h-36 bg-bg-elevated">
+            <img
+              src={`http://localhost:5000${report.image_url}`}
+              alt="report"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+          </div>
+        ) : (
+          <div className="rounded-xl h-36 bg-bg-elevated border border-border flex items-center justify-center">
+            <MapPin size={28} className="text-gray-600" />
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <SeverityBadge severity={sev} size="sm" />
+          <span className="text-xs font-mono text-gray-600">#{report.id.slice(-6)}</span>
         </div>
-      ) : (
-        <div className="rounded-xl h-36 bg-bg-elevated border border-border flex items-center justify-center">
-          <MapPin size={28} className="text-gray-600" />
+
+        <p className="text-sm text-gray-300 line-clamp-2 flex-1">
+          {report.description || 'No description provided.'}
+        </p>
+
+        <div className="text-xs text-gray-500 flex items-center justify-between">
+          <span className="capitalize font-medium text-gray-400">{report.category?.replace(/_/g, ' ')}</span>
+          <span className="flex items-center gap-1">
+            <Calendar size={10} />
+            {formatDistanceToNow(new Date(report.created_at), { addSuffix: true })}
+          </span>
         </div>
-      )}
+      </Link>
 
-      {/* Badges */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <SeverityBadge severity={sev} size="sm" />
-        <span className="text-xs font-mono text-gray-600">#{report.id}</span>
-      </div>
-
-      {/* Description */}
-      <p className="text-sm text-gray-300 line-clamp-2 flex-1">
-        {report.description || 'No description provided.'}
-      </p>
-
-      {/* Category & date */}
-      <div className="text-xs text-gray-500 flex items-center justify-between">
-        <span className="capitalize font-medium text-gray-400">{report.category}</span>
-        <span className="flex items-center gap-1">
-          <Calendar size={10} />
-          {formatDistanceToNow(new Date(report.created_at), { addSuffix: true })}
-        </span>
-      </div>
-
-      {/* Upvote + Priority */}
       <div className="flex items-center justify-between pt-2 border-t border-border">
         <button
           onClick={handleUpvote}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-all ${
+          disabled={upvoted === null}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-all disabled:opacity-50 ${
             upvoted
               ? 'bg-amber/10 border-amber/30 text-amber'
               : 'bg-bg-elevated border-border text-gray-400 hover:border-amber/20'
@@ -204,9 +214,8 @@ const Dashboard: React.FC = () => {
     return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
   };
 
-  // Derived stats from real reports
   const totalIssues   = reports.length;
-  const openIssues    = reports.filter(r => !r.status || r.status === 'open').length;
+  const openIssues    = reports.filter(r => !r.status || ['reported', 'under-review', 'assigned', 'in_progress', 'open', 'pending'].includes(r.status)).length;
   const criticalCount = reports.filter(r => r.severity_score >= 80).length;
   const avgPriority   = totalIssues
     ? Math.round(reports.reduce((s, r) => s + r.priority_score, 0) / totalIssues)
@@ -235,7 +244,6 @@ const Dashboard: React.FC = () => {
           <div>
             <p className="text-gray-500 text-sm mb-1">{greeting()},</p>
             <h1 className="font-display text-4xl font-black text-white">
-              {/* Everyone sees their own name in the greeting */}
               {(user?.name ?? 'CITIZEN').toUpperCase()} <span className="text-amber">👋</span>
             </h1>
             <p className="text-gray-400 text-sm mt-1">
@@ -256,27 +264,14 @@ const Dashboard: React.FC = () => {
 
         {/* ── Stats Grid ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatCard
-            label="Total Reports"      value={totalIssues}   icon={AlertTriangle}
-            accent="amber"  gradient="bg-amber-500"
-          />
-          <StatCard
-            label="Open Issues"        value={openIssues}    icon={Clock}
-            accent="red"    delta="Live" deltaUp={false}
-          />
-          <StatCard
-            label="Critical"           value={criticalCount} icon={Zap}
-            accent="red"
-          />
-          <StatCard
-            label="Avg Priority Score" value={avgPriority}   icon={TrendingUp}
-            accent="cyan"   suffix="/100"
-          />
+          <StatCard label="Total Reports"      value={totalIssues}   icon={AlertTriangle} accent="amber" gradient="bg-amber-500" />
+          <StatCard label="Open Issues"        value={openIssues}    icon={Clock}         accent="red"   delta="Live" deltaUp={false} />
+          <StatCard label="Critical"           value={criticalCount} icon={Zap}           accent="red" />
+          <StatCard label="Avg Priority Score" value={avgPriority}   icon={TrendingUp}    accent="cyan"  suffix="/100" />
         </div>
 
         {/* ── Charts Row ── */}
         <div className="grid lg:grid-cols-3 gap-5 mb-8">
-          {/* Activity chart */}
           <div className="lg:col-span-2 cs-card p-5">
             <div className="flex items-center justify-between mb-5">
               <div>
@@ -309,14 +304,12 @@ const Dashboard: React.FC = () => {
             </ResponsiveContainer>
           </div>
 
-          {/* Severity breakdown */}
           <div className="cs-card p-5">
             <h3 className="font-display text-lg font-bold text-white uppercase tracking-wide mb-1">By Severity</h3>
             <p className="text-xs text-gray-500 mb-4">Open issues breakdown</p>
             <ResponsiveContainer width="100%" height={160}>
               <PieChart>
-                <Pie data={SEVERITY_DATA} cx="50%" cy="50%" innerRadius={45} outerRadius={70}
-                  dataKey="value" stroke="none">
+                <Pie data={SEVERITY_DATA} cx="50%" cy="50%" innerRadius={45} outerRadius={70} dataKey="value" stroke="none">
                   {SEVERITY_DATA.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                 </Pie>
                 <Tooltip content={<CustomTooltip />} />
@@ -344,9 +337,9 @@ const Dashboard: React.FC = () => {
             <ResponsiveContainer width="100%" height={200}>
               <BarChart
                 data={reports.slice(0, 8).map(r => ({
-                  name: `#${r.id}`,
-                  priority: r.priority_score,
-                  severity: r.severity_score,
+                  name: `#${r.id.slice(-6)}`,
+                  priority: Math.round(r.priority_score),
+                  severity: Math.round(r.severity_score),
                 }))}
                 margin={{ top: 5, right: 10, bottom: 0, left: -20 }}
               >
@@ -354,8 +347,8 @@ const Dashboard: React.FC = () => {
                 <XAxis dataKey="name" tick={{ fill: '#6B7280', fontSize: 10 }} />
                 <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} domain={[0, 100]} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="priority"  name="Priority"  fill="#F97316" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="severity" name="Severity" fill="#EF4444"  radius={[4, 4, 0, 0]} />
+                <Bar dataKey="priority" name="Priority" fill="#F97316" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="severity" name="Severity" fill="#EF4444" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

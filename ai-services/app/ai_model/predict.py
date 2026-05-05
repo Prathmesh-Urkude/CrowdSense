@@ -1,3 +1,4 @@
+import os
 import torch
 from torchvision import transforms
 from PIL import Image
@@ -6,7 +7,9 @@ from .utils import calculate_severity
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = PotholeCNN().to(device)
-model.load_state_dict(torch.load("D:\\VSCode\\CrowdSense\\ai-services\\app\\ai_model\\model\\pothole_cnn.pth", map_location=device))
+
+_MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "model", "pothole_cnn.pth")
+model.load_state_dict(torch.load(_MODEL_PATH, map_location=device))
 model.eval()
 
 transform = transforms.Compose([transforms.Resize((224, 224)),transforms.ToTensor()])

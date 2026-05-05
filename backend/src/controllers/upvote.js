@@ -4,25 +4,47 @@ const toggleUpvote = async (req, res) => {
     const report_id = req.params.reportId;
     const user_id = req.user._id;
 
+    const client = await pool.connect();
     try {
-        // check if the user has already upvoted
-        const checkQuery = 'SELECT * FROM upvotes WHERE report_id = $1 AND user_id = $2';
-        const checkResult = await pool.query(checkQuery, [report_id, user_id]);
+        let increment = 0;
+        await client.query("BEGIN");
 
-        if(checkResult.rows.length > 0) {
-            // if upvote exists, remove it (toggle off)
-            const deleteQuery = 'DELETE FROM upvotes WHERE report_id = $1 AND user_id = $2';
-            await pool.query(deleteQuery, [report_id, user_id]);
-            res.json({ message: 'Upvote removed' });
+        const insertResult = await client.query(
+            `INSERT INTO upvotes (report_id, user_id)
+             VALUES ($1, $2)
+             ON CONFLICT (report_id, user_id) DO NOTHING
+             RETURNING *`,
+            [report_id, user_id]
+        );
+
+        if (insertResult.rows.length > 0) {
+            increment = 1;
+        } else {
+            await client.query(
+                `DELETE FROM upvotes WHERE report_id = $1 AND user_id = $2`,
+                [report_id, user_id]
+            );
+            increment = -1;
         }
 
-        // if no upvote exists, add it (toggle on)
-        const insertQuery = 'INSERT INTO upvotes (report_id, user_id) VALUES ($1, $2)';
-        await pool.query(insertQuery, [report_id, user_id]);
-        res.json({ message: 'Upvote added' });
-    }
-    catch (error) {
+        // priority = 70% severity + 30% popularity (log-scaled upvotes), both on 0-100 scale
+        await client.query(
+            `UPDATE reports
+             SET upvote_count = upvote_count + $2,
+                 priority_score = 0.7 * severity_score
+                                + 0.3 * (LOG(GREATEST(upvote_count + $2, 0) + 1)
+                                         / (LOG(GREATEST(upvote_count + $2, 0) + 1) + 1)) * 100
+             WHERE id = $1 AND upvote_count + $2 >= 0`,
+            [report_id, increment]
+        );
+
+        await client.query('COMMIT');
+        res.json({ message: increment === 1 ? 'Upvote added' : 'Upvote removed' });
+    } catch (error) {
+        await client.query('ROLLBACK');
         res.status(500).json({ error: error.message });
+    } finally {
+        client.release();
     }
 };
 
@@ -30,10 +52,9 @@ const getUpvoteCount = async (req, res) => {
     const { reportId } = req.params;
 
     try {
-        const result = await pool.query(`SELECT COUNT(*) FROM upvotes WHERE report_id = $1`,[reportId]);
-        res.status(200).json({reportId, upvotes: parseInt(result.rows[0].count)});
-    } 
-    catch (error) {
+        const result = await pool.query(`SELECT upvote_count FROM reports WHERE id = $1`, [reportId]);
+        res.status(200).json({ reportId, upvotes: parseInt(result.rows[0].upvote_count) });
+    } catch (error) {
         res.status(500).json({ error: error.message });
     }
 };
@@ -43,10 +64,9 @@ const checkUserUpvote = async (req, res) => {
     const userId = req.user._id;
 
     try {
-        const result = await pool.query(`SELECT 1 FROM upvotes WHERE report_id = $1 AND user_id = $2`,[reportId, userId]);
-        res.status(200).json({hasUpvoted: result.rows.length > 0});
-    } 
-    catch (error) {
+        const result = await pool.query(`SELECT 1 FROM upvotes WHERE report_id = $1 AND user_id = $2`, [reportId, userId]);
+        res.status(200).json({ hasUpvoted: result.rows.length > 0 });
+    } catch (error) {
         res.status(500).json({ error: error.message });
     }
 };

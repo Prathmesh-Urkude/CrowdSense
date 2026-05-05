@@ -4,11 +4,11 @@ import { motion } from 'framer-motion';
 import {
   ArrowLeft, MapPin, ThumbsUp, MessageCircle, Clock,
   Share2, CheckCircle2, Zap, BarChart3,
-  DollarSign, Activity, Brain, AlertTriangle, X,
+  Activity, Brain, AlertTriangle, X, Star,
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import { SeverityBadge, StatusBadge, PriorityRing, SeverityBar } from '../components/SeverityBadge';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { upvoteAPI, reportsAPI, disputeAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -18,12 +18,96 @@ import type { BackendReport } from '../types';
 const severityFromScore = (score: number): 'critical' | 'high' | 'medium' | 'low' =>
   score >= 80 ? 'critical' : score >= 60 ? 'high' : score >= 40 ? 'medium' : 'low';
 
+const STATUS_FLOW = [
+  { key: 'reported',     label: 'Reported' },
+  { key: 'under-review', label: 'Under Review' },
+  { key: 'assigned',     label: 'Assigned' },
+  { key: 'in_progress',  label: 'In Progress' },
+  { key: 'resolved',     label: 'Resolved' },
+];
+
+const STATUS_ORDER: Record<string, number> = {
+  reported: 0, 'under-review': 1, assigned: 2, in_progress: 3, resolved: 4, closed: 4, rejected: -1,
+};
+
+// ─── Feedback Form ─────────────────────────────────────────────────────────────
+const FeedbackForm: React.FC<{ reportId: string; onDone: () => void }> = ({ reportId, onDone }) => {
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async () => {
+    if (rating === 0) { toast.error('Please select a rating.'); return; }
+    setSubmitting(true);
+    try {
+      await reportsAPI.submitFeedback(reportId, rating, comment);
+      toast.success('Thank you for your feedback!');
+      onDone();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error ?? 'Failed to submit feedback.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="cs-card p-5 border-green-500/20 bg-green-500/5"
+    >
+      <div className="flex items-center gap-2 mb-4">
+        <CheckCircle2 size={16} className="text-green-400" />
+        <h3 className="font-display text-base font-bold text-white uppercase tracking-wide">
+          Issue Resolved — Share Your Feedback
+        </h3>
+      </div>
+      <p className="text-sm text-gray-400 mb-4">
+        How satisfied are you with the resolution of this issue?
+      </p>
+
+      {/* Star rating */}
+      <div className="flex gap-2 mb-4">
+        {[1, 2, 3, 4, 5].map(n => (
+          <button
+            key={n}
+            onClick={() => setRating(n)}
+            className="transition-transform hover:scale-110"
+          >
+            <Star
+              size={28}
+              className={n <= rating ? 'fill-amber text-amber' : 'text-gray-600'}
+            />
+          </button>
+        ))}
+      </div>
+
+      <textarea
+        rows={3}
+        value={comment}
+        onChange={e => setComment(e.target.value)}
+        placeholder="Tell us more about the resolution (optional)..."
+        className="cs-input w-full px-4 py-2.5 rounded-xl text-sm resize-none mb-4"
+      />
+
+      <button
+        onClick={submit}
+        disabled={submitting || rating === 0}
+        className="btn-primary w-full py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-40"
+      >
+        {submitting ? <><div className="spinner w-4 h-4 border-2" /> Submitting...</> : 'Submit Feedback'}
+      </button>
+    </motion.div>
+  );
+};
+
 // ─── IssueDetail ──────────────────────────────────────────────────────────────
 const IssueDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
 
   const [report, setReport] = useState<BackendReport | null>(null);
+  const [reportUser, setReportUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   // Upvote state
@@ -31,7 +115,10 @@ const IssueDetail: React.FC = () => {
   const [upvoteCount, setUpvoteCount] = useState(0);
   const [upvoteLoading, setUpvoteLoading] = useState(false);
 
-  // Comments (frontend-only for now — no backend endpoint)
+  // Feedback
+  const [feedbackDone, setFeedbackDone] = useState(false);
+
+  // Comments (frontend-only)
   const [comment, setComment] = useState('');
   const [comments, setComments] = useState<{ id: string; text: string; author: string; role: string; createdAt: string }[]>([]);
 
@@ -39,29 +126,44 @@ const IssueDetail: React.FC = () => {
   useEffect(() => {
     if (!id) return;
 
-    // Backend has no GET /reports/:id yet — fetch all and find by id
-    reportsAPI.getAll()
+    reportsAPI.getById(id)
       .then(res => {
-        const list: BackendReport[] = Array.isArray(res.data) ? res.data : [];
-        const found = list.find(r => String(r.id) === String(id));
-        setReport(found ?? null);
+        const data = res.data as any;
+        // getById returns { report, user } for owner/admin, or the report object directly
+        if (data?.report) {
+          setReport(data.report);
+          if (data.user) setReportUser(data.user);
+        } else {
+          setReport(data as BackendReport);
+        }
       })
-      .catch(() => setReport(null))
+      .catch(() => {
+        // Fallback: search from getAll
+        return reportsAPI.getAll()
+          .then(res2 => {
+            const list: BackendReport[] = Array.isArray(res2.data) ? res2.data : [];
+            setReport(list.find(r => String(r.id) === String(id)) ?? null);
+          })
+          .catch(() => setReport(null));
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
   // ── Load upvote state ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!id) return;
-    // Backend returns: { upvotes: number } and { hasUpvoted: boolean }
-    Promise.all([
-      upvoteAPI.getCount(id).catch(() => ({ data: { upvotes: 0 } })),
-      upvoteAPI.getStatus(id).catch(() => ({ data: { hasUpvoted: false } })),
-    ]).then(([countRes, statusRes]) => {
-      setUpvoteCount((countRes.data as any)?.upvotes ?? 0);
-      setUpvoted((statusRes.data as any)?.hasUpvoted ?? false);
-    });
-  }, [id]);
+
+    upvoteAPI.getStatus(id)
+      .then(res => {
+        const d = res.data as any;
+        // backend returns { hasUpvoted: boolean }
+        setUpvoted(d?.hasUpvoted ?? d?.upvoted ?? false);
+      })
+      .catch(() => setUpvoted(false));
+
+    // Use upvote_count from the report itself — getUpvoteCount has a known bug
+    if (report) setUpvoteCount(report.upvote_count ?? 0);
+  }, [id, report]);
 
   // ── Handle upvote ───────────────────────────────────────────────────────────
   const handleUpvote = async () => {
@@ -70,8 +172,9 @@ const IssueDetail: React.FC = () => {
     setUpvoteLoading(true);
     try {
       await upvoteAPI.toggle(id);
-      setUpvoted(p => !p);
-      setUpvoteCount(p => upvoted ? p - 1 : p + 1);
+      const next = !upvoted;
+      setUpvoted(next);
+      setUpvoteCount(p => next ? p + 1 : Math.max(0, p - 1));
       toast.success(upvoted ? 'Upvote removed' : 'Upvoted!');
     } catch {
       toast.error('Failed to upvote. Please try again.');
@@ -86,7 +189,6 @@ const IssueDetail: React.FC = () => {
     setComments(p => [...p, {
       id: `c${p.length + 1}`,
       text: comment,
-      // Your own comments show your name; admin shows admin name
       author: user?.role === 'admin' ? (user.name ?? 'Admin') : (user?.name ?? 'Anonymous Citizen'),
       role: user?.role ?? 'user',
       createdAt: new Date().toISOString(),
@@ -95,7 +197,6 @@ const IssueDetail: React.FC = () => {
     toast.success('Comment added!');
   };
 
-  // ── Share ────────────────────────────────────────────────────────────────────
   const handleShare = () => {
     navigator.clipboard?.writeText(window.location.href);
     toast.success('Link copied to clipboard!');
@@ -117,8 +218,7 @@ const IssueDetail: React.FC = () => {
       setDisputeOpen(false);
       toast.success('Dispute filed. Authorities have been notified.');
     } catch (err: any) {
-      const msg = err?.response?.data?.error ?? 'Failed to file dispute.';
-      toast.error(msg);
+      toast.error(err?.response?.data?.error ?? 'Failed to file dispute.');
     } finally {
       setDisputeSubmitting(false);
     }
@@ -151,21 +251,17 @@ const IssueDetail: React.FC = () => {
   }
 
   const severity = severityFromScore(report.severity_score);
-  const status = (report.status as any) ?? 'open';
+  const status = report.status ?? 'reported';
 
-  // Parse location from PostGIS if available
-  let lat: number | null = null;
-  let lng: number | null = null;
-  try {
-    if (typeof report.location === 'string') {
-      // PostGIS returns something like "0101000020E6100000..."
-      // Real lat/lng not extractable from binary without postgis client
-    } else if (report.location && typeof report.location === 'object') {
-      const loc = report.location as any;
-      lat = loc.lat ?? loc.coordinates?.[1] ?? null;
-      lng = loc.lng ?? loc.coordinates?.[0] ?? null;
-    }
-  } catch { /* ignore */ }
+  // lat/lng are now returned directly from the backend SQL query
+  const lat = report.lat ?? null;
+  const lng = report.lng ?? null;
+
+  const currentStepIdx = STATUS_ORDER[status] ?? 0;
+  const isRejected = status === 'rejected';
+  const isResolved = status === 'resolved' || status === 'closed';
+  const isOwnReport = user && (user.id === report.created_by || (user as any)._id === report.created_by);
+  const showFeedback = isResolved && isOwnReport && !feedbackDone;
 
   return (
     <div className="min-h-screen pt-16 bg-grid noise">
@@ -188,11 +284,11 @@ const IssueDetail: React.FC = () => {
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-2 mb-3">
                     <SeverityBadge severity={severity} size="md" />
-                    <StatusBadge status={status} />
-                    <span className="text-xs font-mono text-gray-500">#{report.id}</span>
+                    <StatusBadge status={status as any} />
+                    <span className="text-xs font-mono text-gray-500">#{report.id.slice(-8)}</span>
                   </div>
                   <h1 className="font-display text-3xl font-black text-white leading-tight">
-                    {report.category?.replace('_', ' ').toUpperCase() || 'ROAD DAMAGE REPORT'}
+                    {report.category?.replace(/_/g, ' ').toUpperCase() || 'ROAD DAMAGE REPORT'}
                   </h1>
                 </div>
                 <PriorityRing score={report.priority_score} size={72} />
@@ -211,21 +307,25 @@ const IssueDetail: React.FC = () => {
                 </span>
                 <span className="flex items-center gap-1.5 capitalize">
                   <MapPin size={13} className="text-amber" />
-                  {report.category?.replace('_', ' ') || 'Unknown category'}
+                  {report.category?.replace(/_/g, ' ') || 'Unknown category'}
                 </span>
-                {/* Reporter name:
-                    - Own report  → show own name
-                    - Admin       → show user ID (real name not stored in report)
-                    - Others      → Anonymous Citizen */}
                 <span className="flex items-center gap-1.5 text-xs font-mono">
                   Reported by:{' '}
-                  {report.created_by === user?.id
-                    ? <span className="text-amber">{user.name} (You)</span>
-                    : user?.role === 'admin'
-                      ? <span className="text-gray-300">User {report.created_by?.slice(-6)}</span>
-                      : <span>Anonymous Citizen</span>
+                  {isOwnReport
+                    ? <span className="text-amber">{user!.name} (You)</span>
+                    : user?.role === 'admin' && reportUser
+                      ? <span className="text-gray-300">{reportUser.username ?? reportUser.email}</span>
+                      : user?.role === 'admin'
+                        ? <span className="text-gray-300">User …{report.created_by?.slice(-8)}</span>
+                        : <span>Anonymous Citizen</span>
                   }
                 </span>
+                {report.updated_at && (
+                  <span className="flex items-center gap-1.5 text-xs">
+                    <Activity size={11} className="text-cyan-400" />
+                    Updated {formatDistanceToNow(new Date(report.updated_at), { addSuffix: true })}
+                  </span>
+                )}
               </div>
 
               {/* Actions */}
@@ -250,8 +350,8 @@ const IssueDetail: React.FC = () => {
                   <Share2 size={14} /> Share
                 </button>
 
-                {/* Dispute button — only for resolved/closed reports, non-admin users */}
-                {(status === 'resolved' || status === 'closed') && user && user.role !== 'admin' && (
+                {/* Dispute button — only for resolved/closed reports, non-admin */}
+                {isResolved && user && user.role !== 'admin' && (
                   disputeFiled ? (
                     <span className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm border border-green-500/30 bg-green-500/10 text-green-400">
                       <CheckCircle2 size={14} /> Dispute Filed
@@ -284,38 +384,62 @@ const IssueDetail: React.FC = () => {
 
             {/* Status Timeline */}
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="cs-card p-5">
-              <h3 className="font-display text-base font-bold text-white uppercase tracking-wide mb-5">Resolution Timeline</h3>
-              <div className="relative">
-                <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-border" />
-                <div className="space-y-5">
-                  {[
-                    { label: 'Reported',        done: true,                                       active: false },
-                    { label: 'AI Analysed',     done: true,                                       active: false },
-                    { label: 'Under Review',    done: status !== 'open',                          active: status === 'open' },
-                    { label: 'In Progress',     done: status === 'resolved' || status === 'closed', active: status === 'in_progress' },
-                    { label: 'Resolved',        done: status === 'resolved' || status === 'closed', active: false },
-                  ].map((step, i) => (
-                    <div key={step.label} className="flex items-center gap-4 relative pl-10">
-                      <div className={`absolute left-0 w-8 h-8 rounded-full border-2 flex items-center justify-center z-10 transition-all ${
-                        step.done
-                          ? 'bg-amber border-amber text-white'
-                          : step.active
-                            ? 'bg-bg-card border-amber text-amber animate-pulse'
-                            : 'bg-bg-card border-border text-gray-600'
-                      }`}>
-                        {step.done ? <CheckCircle2 size={14} /> : <span className="text-xs font-bold">{i + 1}</span>}
-                      </div>
-                      <div className="flex-1">
-                        <p className={`text-sm font-semibold ${step.done || step.active ? 'text-white' : 'text-gray-500'}`}>
-                          {step.label}
-                          {step.active && <span className="ml-2 text-xs text-amber font-normal animate-pulse">● Current</span>}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+              <h3 className="font-display text-base font-bold text-white uppercase tracking-wide mb-5">Status Timeline</h3>
+
+              {isRejected ? (
+                <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                  <X size={20} className="text-red-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-red-300">Report Rejected</p>
+                    <p className="text-xs text-gray-500 mt-0.5">This report was reviewed and rejected by authorities.</p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="relative">
+                  <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-border" />
+                  <div className="space-y-5">
+                    {STATUS_FLOW.map((step, i) => {
+                      const done = i <= currentStepIdx;
+                      const active = i === currentStepIdx;
+                      return (
+                        <div key={step.key} className="flex items-center gap-4 relative pl-10">
+                          <div className={`absolute left-0 w-8 h-8 rounded-full border-2 flex items-center justify-center z-10 transition-all ${
+                            done
+                              ? 'bg-amber border-amber text-white'
+                              : active
+                                ? 'bg-bg-card border-amber text-amber animate-pulse'
+                                : 'bg-bg-card border-border text-gray-600'
+                          }`}>
+                            {done && !active ? <CheckCircle2 size={14} /> : <span className="text-xs font-bold">{i + 1}</span>}
+                          </div>
+                          <div className="flex-1">
+                            <p className={`text-sm font-semibold ${done || active ? 'text-white' : 'text-gray-500'}`}>
+                              {step.label}
+                              {active && <span className="ml-2 text-xs text-amber font-normal animate-pulse">● Current</span>}
+                            </p>
+                            {i === 0 && (
+                              <p className="text-xs text-gray-600 mt-0.5">
+                                {format(new Date(report.created_at), 'dd MMM yyyy, hh:mm a')}
+                              </p>
+                            )}
+                            {active && report.updated_at && i > 0 && (
+                              <p className="text-xs text-gray-600 mt-0.5">
+                                {format(new Date(report.updated_at), 'dd MMM yyyy, hh:mm a')}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </motion.div>
+
+            {/* Feedback form — only for report creator when resolved */}
+            {showFeedback && id && (
+              <FeedbackForm reportId={id} onDone={() => setFeedbackDone(true)} />
+            )}
 
             {/* Comments */}
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="cs-card p-5">
@@ -392,7 +516,7 @@ const IssueDetail: React.FC = () => {
                 <div>
                   <SeverityBadge severity={severity} size="md" />
                   <p className="text-sm font-bold text-white mt-1 capitalize">
-                    {report.category?.replace('_', ' ') || 'Road Damage'}
+                    {report.category?.replace(/_/g, ' ') || 'Road Damage'}
                   </p>
                 </div>
               </div>
@@ -404,9 +528,8 @@ const IssueDetail: React.FC = () => {
 
               <div className="space-y-2 text-xs">
                 {[
-                  { icon: BarChart3,  label: 'Severity Score', val: `${report.severity_score}/100` },
-                  { icon: DollarSign, label: 'Priority Score',  val: `${report.priority_score}/100` },
-                  { icon: Clock,      label: 'SLA Target',      val: severity === 'critical' ? '< 24 h' : severity === 'high' ? '< 48 h' : '< 7 days' },
+                  { icon: BarChart3, label: 'Severity Score', val: `${Math.round(report.severity_score)}/100` },
+                  { icon: Clock,     label: 'SLA Target',     val: severity === 'critical' ? '< 24 h' : severity === 'high' ? '< 48 h' : '< 7 days' },
                 ].map(s => (
                   <div key={s.label} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
                     <span className="flex items-center gap-1.5 text-gray-500"><s.icon size={12} />{s.label}</span>
@@ -426,8 +549,8 @@ const IssueDetail: React.FC = () => {
                 <>
                   <MapContainer
                     center={[lat, lng]}
-                    zoom={14}
-                    style={{ height: '160px', borderRadius: '12px', border: '1px solid #1E293B' }}
+                    zoom={15}
+                    style={{ height: '180px', borderRadius: '12px', border: '1px solid #1E293B' }}
                     scrollWheelZoom={false}
                     dragging={false}
                     zoomControl={false}
@@ -453,7 +576,7 @@ const IssueDetail: React.FC = () => {
                     <div className="w-10 h-10 bg-amber/20 border-2 border-amber rounded-full flex items-center justify-center mx-auto mb-2 animate-pulse-slow">
                       <MapPin size={18} className="text-amber" />
                     </div>
-                    <p className="text-xs text-gray-500">Location data stored as PostGIS</p>
+                    <p className="text-xs text-gray-500">Location not available</p>
                   </div>
                 </div>
               )}
@@ -465,7 +588,7 @@ const IssueDetail: React.FC = () => {
                 <Activity size={15} className="text-cyan-400" /> Status
               </h3>
               <div className="flex items-center justify-between mb-3">
-                <StatusBadge status={status} size="md" />
+                <StatusBadge status={status as any} size="md" />
                 <span className="text-xs font-mono text-gray-500">
                   {formatDistanceToNow(new Date(report.created_at), { addSuffix: true })}
                 </span>
@@ -479,7 +602,7 @@ const IssueDetail: React.FC = () => {
             {/* Upvote CTA */}
             {!upvoted && (
               <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 }} className="cs-card p-4 border-amber/20 bg-amber/5">
-                <p className="text-sm font-semibold text-white mb-1">This issue affect you?</p>
+                <p className="text-sm font-semibold text-white mb-1">This issue affects you?</p>
                 <p className="text-xs text-gray-400 mb-3">
                   Upvote to increase its priority and get it fixed faster.
                 </p>
@@ -499,7 +622,6 @@ const IssueDetail: React.FC = () => {
       {/* ── Dispute Modal ─────────────────────────────────────────────────────── */}
       {disputeOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setDisputeOpen(false)}
@@ -510,7 +632,6 @@ const IssueDetail: React.FC = () => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             className="relative z-10 w-full max-w-md cs-card p-6"
           >
-            {/* Header */}
             <div className="flex items-start justify-between mb-5">
               <div>
                 <div className="flex items-center gap-2 mb-1">
@@ -521,51 +642,40 @@ const IssueDetail: React.FC = () => {
                   Flag this report if the issue was marked fixed but the problem still exists.
                 </p>
               </div>
-              <button
-                onClick={() => setDisputeOpen(false)}
-                className="text-gray-500 hover:text-white transition ml-4 flex-shrink-0"
-              >
+              <button onClick={() => setDisputeOpen(false)} className="text-gray-500 hover:text-white transition ml-4 flex-shrink-0">
                 <X size={18} />
               </button>
             </div>
 
-            {/* Reason picker */}
             <div className="space-y-2 mb-5">
               <p className="text-xs font-display uppercase tracking-widest text-gray-400 mb-3">Reason</p>
               {[
-                { value: 'not_fixed',        label: 'Issue is still not fixed',          desc: 'The problem persists exactly as reported.' },
-                { value: 'partially_fixed',  label: 'Only partially fixed',              desc: 'Some work was done but the issue remains.' },
-                { value: 'recurring_issue',  label: 'Issue has come back',               desc: 'It was fixed but the problem has returned.' },
-                { value: 'wrong_location',   label: 'Wrong location was marked',         desc: 'The fix happened at a different spot.' },
-                { value: 'other',            label: 'Other reason',                      desc: 'Explain below.' },
+                { value: 'not_fixed',       label: 'Issue is still not fixed',    desc: 'The problem persists exactly as reported.' },
+                { value: 'partially_fixed', label: 'Only partially fixed',        desc: 'Some work was done but the issue remains.' },
+                { value: 'recurring_issue', label: 'Issue has come back',         desc: 'It was fixed but the problem has returned.' },
+                { value: 'wrong_location',  label: 'Wrong location was marked',   desc: 'The fix happened at a different spot.' },
+                { value: 'other',           label: 'Other reason',                desc: 'Explain below.' },
               ].map(opt => (
                 <label
                   key={opt.value}
                   className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                    disputeReason === opt.value
-                      ? 'border-red-500/40 bg-red-500/10'
-                      : 'border-border bg-bg-elevated hover:border-gray-600'
+                    disputeReason === opt.value ? 'border-red-500/40 bg-red-500/10' : 'border-border bg-bg-elevated hover:border-gray-600'
                   }`}
                 >
                   <input
-                    type="radio"
-                    name="dispute-reason"
-                    value={opt.value}
+                    type="radio" name="dispute-reason" value={opt.value}
                     checked={disputeReason === opt.value}
                     onChange={e => setDisputeReason(e.target.value)}
                     className="mt-0.5 accent-red-500 flex-shrink-0"
                   />
                   <div>
-                    <p className={`text-sm font-semibold ${disputeReason === opt.value ? 'text-red-300' : 'text-white'}`}>
-                      {opt.label}
-                    </p>
+                    <p className={`text-sm font-semibold ${disputeReason === opt.value ? 'text-red-300' : 'text-white'}`}>{opt.label}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{opt.desc}</p>
                   </div>
                 </label>
               ))}
             </div>
 
-            {/* Optional comment */}
             <div className="mb-5">
               <label className="block text-xs font-display uppercase tracking-widest text-gray-400 mb-2">
                 Additional details <span className="text-gray-600 normal-case">(optional)</span>
@@ -579,7 +689,6 @@ const IssueDetail: React.FC = () => {
               />
             </div>
 
-            {/* Actions */}
             <div className="flex gap-2">
               <button
                 onClick={() => setDisputeOpen(false)}

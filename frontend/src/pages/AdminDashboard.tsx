@@ -25,11 +25,10 @@ import {
   AlertTriangle, CheckCircle2, Clock, Users, Download,
   ChevronDown, Search, MoreVertical, Zap, TrendingUp,
   RefreshCw, Shield, Plus, Trash2, MessageSquare,
-  UserCheck, X, Send, Eye, ExternalLink, List,
+  UserCheck, X, Send, Eye, ExternalLink, List, Activity,
 } from 'lucide-react';
 import { SeverityBadge, StatusBadge, PriorityRing } from '../components/SeverityBadge';
 import { formatDistanceToNow } from 'date-fns';
-import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { reportsAPI, adminAPI, disputeAPI } from '../utils/api';
 import type { BackendReport, IssueStatus } from '../types';
@@ -49,7 +48,20 @@ type TabId = 'reports' | 'users' | 'create';
 const severityLabel = (score: number): 'critical' | 'high' | 'medium' | 'low' =>
   score >= 80 ? 'critical' : score >= 60 ? 'high' : score >= 40 ? 'medium' : 'low';
 
-const statusOptions: IssueStatus[] = ['pending', 'open', 'in_progress', 'resolved', 'closed'];
+// Status flow aligned with backend
+const statusOptions: IssueStatus[] = [
+  'reported', 'under-review', 'assigned', 'in_progress', 'resolved', 'closed', 'rejected',
+];
+
+const STATUS_LABELS: Record<string, string> = {
+  reported:      '○ Reported',
+  'under-review':'◑ Under Review',
+  assigned:      '◎ Assigned',
+  in_progress:   '◉ In Progress',
+  resolved:      '✓ Resolved',
+  closed:        '✕ Closed',
+  rejected:      '✗ Rejected',
+};
 
 // ─── Feedback Modal ───────────────────────────────────────────────────────────
 const FeedbackModal: React.FC<{
@@ -454,7 +466,7 @@ const UsersTab: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((u, i) => (
+              {filtered.map((u) => (
                 <tr key={u.id} className="border-b border-border hover:bg-white/3 transition">
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-3">
@@ -509,6 +521,100 @@ const UsersTab: React.FC = () => {
   );
 };
 
+// ─── Status Update Modal ──────────────────────────────────────────────────────
+const StatusUpdateModal: React.FC<{
+  report: BackendReport;
+  onClose: () => void;
+  onUpdate: (status: string, remark: string) => void;
+}> = ({ report, onClose, onUpdate }) => {
+  const [selectedStatus, setSelectedStatus] = useState(report.status ?? 'reported');
+  const [remark, setRemark] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async () => {
+    setSubmitting(true);
+    onUpdate(selectedStatus, remark.trim() || 'No remarks provided');
+    setSubmitting(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="cs-card w-full max-w-md p-6"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Activity size={18} className="text-amber" />
+            <h3 className="font-display text-lg font-bold text-white uppercase tracking-wide">
+              Update Status
+            </h3>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-3 bg-bg-elevated rounded-xl border border-border mb-4">
+          <p className="text-xs text-gray-500 mb-1">Report #{report.id.slice(-8)}</p>
+          <p className="text-sm text-gray-300 line-clamp-2">{report.description || 'No description'}</p>
+        </div>
+
+        <div className="mb-4">
+          <p className="text-xs font-display uppercase tracking-widest text-gray-400 mb-3">New Status</p>
+          <div className="grid grid-cols-2 gap-2">
+            {statusOptions.map(opt => (
+              <button
+                key={opt}
+                onClick={() => setSelectedStatus(opt)}
+                className={`px-3 py-2.5 rounded-xl text-xs font-display uppercase tracking-wider border text-left transition-all ${
+                  selectedStatus === opt
+                    ? opt === 'rejected'
+                      ? 'bg-red-500/20 border-red-500/40 text-red-300'
+                      : opt === 'resolved' || opt === 'closed'
+                        ? 'bg-green-500/10 border-green-500/30 text-green-400'
+                        : 'bg-amber/10 border-amber/30 text-amber'
+                    : 'bg-bg-elevated border-border text-gray-400 hover:border-gray-600'
+                }`}
+              >
+                {STATUS_LABELS[opt] ?? opt}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mb-5">
+          <label className="block text-xs font-display uppercase tracking-widest text-gray-400 mb-2">
+            Remarks / Comments
+          </label>
+          <textarea
+            rows={3}
+            value={remark}
+            onChange={e => setRemark(e.target.value)}
+            placeholder="Add remarks for this status change (sent to the reporter via email)..."
+            className="cs-input w-full px-4 py-2.5 rounded-xl text-sm resize-none"
+          />
+        </div>
+
+        <div className="flex gap-3">
+          <button onClick={onClose} className="btn-secondary flex-1 py-3 rounded-xl text-sm">
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={submitting || selectedStatus === report.status}
+            className="btn-primary flex-1 py-3 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-40"
+          >
+            {submitting ? <><div className="spinner w-4 h-4 border-2" /> Updating...</> : 'Update Status'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 // ─── Reports Tab ──────────────────────────────────────────────────────────────
 const ReportsTab: React.FC = () => {
   const [reports, setReports] = useState<BackendReport[]>([]);
@@ -519,10 +625,11 @@ const ReportsTab: React.FC = () => {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [feedbackReport, setFeedbackReport] = useState<BackendReport | null>(null);
   const [disputesReport, setDisputesReport] = useState<BackendReport | null>(null);
+  const [statusUpdateReport, setStatusUpdateReport] = useState<BackendReport | null>(null);
 
   const load = () => {
     setLoading(true);
-    reportsAPI.getAll()
+    adminAPI.getAllReports()
       .then(res => setReports(Array.isArray(res.data) ? res.data : []))
       .catch(() => setReports([]))
       .finally(() => setLoading(false));
@@ -542,35 +649,33 @@ const ReportsTab: React.FC = () => {
     return matchSearch && matchCat && matchSev;
   }).sort((a, b) => b.priority_score - a.priority_score);
 
-  const updateStatus = async (report: BackendReport, status: string) => {
+  const updateStatus = async (report: BackendReport, status: string, remark: string) => {
     try {
-      await reportsAPI.updateStatus(report.id, status);
+      await adminAPI.updateReportStatus(report.id, status, remark);
       setReports(p => p.map(r => r.id === report.id ? { ...r, status } : r));
-      toast.success(`Status updated to "${status.replace('_', ' ')}"`);
+      toast.success(`Status updated to "${status.replace(/_/g, ' ')}"`);
     } catch (err: any) {
-      if (err?.response?.status === 404) {
-        // Optimistic UI update even without backend support
-        setReports(p => p.map(r => r.id === report.id ? { ...r, status } : r));
-        toast(`Status updated locally (backend endpoint pending).`, { icon: '⚠️' });
+      const msg = err?.response?.data?.error;
+      if (msg) {
+        toast.error(msg);
       } else {
-        toast.error('Failed to update status.');
+        setReports(p => p.map(r => r.id === report.id ? { ...r, status } : r));
+        toast(`Status updated locally.`, { icon: '⚠️' });
       }
     }
+    setStatusUpdateReport(null);
     setOpenMenu(null);
   };
 
   const deleteReport = async (report: BackendReport) => {
-    if (!window.confirm(`Delete report #${report.id}? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete report #${report.id.slice(-8)}? This cannot be undone.`)) return;
     try {
-      await reportsAPI.delete(report.id);
+      await adminAPI.deleteReport(report.id);
       setReports(p => p.filter(r => r.id !== report.id));
       toast.success('Report deleted.');
     } catch (err: any) {
-      if (err?.response?.status === 404) {
-        toast('Delete report endpoint not yet available on the server.', { icon: 'ℹ️' });
-      } else {
-        toast.error('Failed to delete report.');
-      }
+      const msg = err?.response?.data?.error ?? 'Failed to delete report.';
+      toast.error(msg);
     }
     setOpenMenu(null);
   };
@@ -643,7 +748,7 @@ const ReportsTab: React.FC = () => {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                {['ID', 'Description', 'Category', 'Severity', 'Priority', 'Reported', 'Status', 'Actions'].map(col => (
+                {['ID', 'Description', 'Category', 'Creator', 'Severity', 'Priority', 'Reported', 'Status', 'Actions'].map(col => (
                   <th key={col} className="text-left px-4 py-3 text-xs font-display uppercase tracking-widest text-gray-500">
                     {col}
                   </th>
@@ -679,7 +784,12 @@ const ReportsTab: React.FC = () => {
                   </td>
                   <td className="px-4 py-3.5">
                     <span className="text-xs text-gray-400 capitalize">
-                      {report.category?.replace('_', ' ') || '—'}
+                      {report.category?.replace(/_/g, ' ') || '—'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <span className="text-xs font-mono text-gray-500">
+                      …{report.created_by?.slice(-8) ?? '—'}
                     </span>
                   </td>
                   <td className="px-4 py-3.5">
@@ -709,42 +819,29 @@ const ReportsTab: React.FC = () => {
                     </button>
 
                     {openMenu === report.id && (
-                      <div className="absolute right-12 top-0 z-20 w-48 glass rounded-xl border border-border shadow-elevated overflow-hidden">
-                        {/* Status options */}
-                        <div className="px-3 pt-2 pb-1">
-                          <p className="text-xs text-gray-600 font-display uppercase tracking-widest mb-1">Update Status</p>
-                        </div>
-                        {statusOptions.map(opt => (
-                          <button
-                            key={opt}
-                            onClick={() => updateStatus(report, opt)}
-                            className={clsx(
-                              'w-full text-left px-3 py-2 text-xs hover:bg-white/5 transition',
-                              (report.status ?? 'pending') === opt ? 'text-amber' : 'text-gray-300'
-                            )}
-                          >
-                            {opt === 'pending'     ? '○ Pending'
-                              : opt === 'open'        ? '● Open'
-                              : opt === 'in_progress' ? '◎ In Progress'
-                              : opt === 'resolved'    ? '✓ Resolved'
-                              : '✕ Closed'}
-                          </button>
-                        ))}
+                      <div className="absolute right-12 top-0 z-20 w-52 glass rounded-xl border border-border shadow-elevated overflow-hidden">
+                        {/* Update status */}
+                        <button
+                          onClick={() => { setStatusUpdateReport(report); setOpenMenu(null); }}
+                          className="w-full text-left px-3 py-2.5 text-xs text-amber hover:bg-white/5 transition flex items-center gap-2"
+                        >
+                          <Activity size={11} /> Update Status / Remark
+                        </button>
 
-                        <div className="border-t border-border mt-1">
+                        <div className="border-t border-border">
                           {/* Send feedback */}
                           <button
                             onClick={() => { setFeedbackReport(report); setOpenMenu(null); }}
                             className="w-full text-left px-3 py-2.5 text-xs text-cyan-400 hover:bg-white/5 transition flex items-center gap-2"
                           >
-                            <MessageSquare size={11} /> Send Feedback
+                            <MessageSquare size={11} /> Send Feedback Email
                           </button>
 
                           {/* View disputes (only for resolved/closed) */}
                           {(report.status === 'resolved' || report.status === 'closed') && (
                             <button
                               onClick={() => { setDisputesReport(report); setOpenMenu(null); }}
-                              className="w-full text-left px-3 py-2.5 text-xs text-red-400 hover:bg-white/5 transition flex items-center gap-2"
+                              className="w-full text-left px-3 py-2.5 text-xs text-orange-400 hover:bg-white/5 transition flex items-center gap-2"
                             >
                               <AlertTriangle size={11} /> View Disputes
                             </button>
@@ -780,6 +877,17 @@ const ReportsTab: React.FC = () => {
           <span className="font-mono">{new Date().toLocaleString('en-IN')}</span>
         </div>
       </div>
+
+      {/* Status update modal */}
+      <AnimatePresence>
+        {statusUpdateReport && (
+          <StatusUpdateModal
+            report={statusUpdateReport}
+            onClose={() => setStatusUpdateReport(null)}
+            onUpdate={(status, remark) => updateStatus(statusUpdateReport, status, remark)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Feedback modal */}
       <AnimatePresence>

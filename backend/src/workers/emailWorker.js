@@ -1,5 +1,5 @@
 import { emailQueue } from '../configs/emailQueue.js';
-import { sendSignUpEmail, sendStatusUpdateEmail } from '../utils/mailService.js';
+import { sendSignUpEmail, sendStatusUpdateEmail, sendAdminFeedbackEmail } from '../utils/mailService.js';
 
 console.log("📧 Email worker started...");;
 
@@ -16,6 +16,10 @@ emailQueue.process(async (job) => {
                 await sendStatusUpdateEmail(data);
                 break;
 
+            case "ADMIN_FEEDBACK":
+                await sendAdminFeedbackEmail(data);
+                break;
+
             default:
                 throw new Error("Unknown email type");
         }
@@ -23,6 +27,6 @@ emailQueue.process(async (job) => {
     }
     catch (error) {
         console.error("Email failed:", error.message);
-        throw err;
+        throw error;
     }
 });

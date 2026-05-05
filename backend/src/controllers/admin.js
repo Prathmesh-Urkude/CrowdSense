@@ -64,9 +64,6 @@ export const updateReportStatus = async (req, res) => {
         }
 
         const currentReport = current.rows[0];
-        if (currentReport.status === 'resolved') {
-            return res.status(400).json({ error: "Cannot change status of resolved report" });
-        }
         if (currentReport.status === status) {
             return res.status(400).json({ error: `Report is already in '${status}' status.` });
         }
@@ -150,6 +147,70 @@ export const deleteReport = async (req, res) => {
 
     }
     catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+export const getAllUsers = async (req, res) => {
+    try {
+        const users = await User.find({ isDeleted: false });
+        res.json({ users });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+export const getAllReportsAdmin = async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT id, description, category, severity_score,
+                upvote_count, priority_score, status, image_url, created_by, created_at,
+                ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lng,
+                updated_by, updated_at
+            FROM reports
+            ORDER BY priority_score DESC, created_at DESC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+export const sendAdminFeedback = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { message } = req.body;
+        if (!message?.trim()) return res.status(400).json({ error: 'Message is required' });
+
+        const reportRes = await pool.query(
+            `SELECT id, description, created_by FROM reports WHERE id = $1`,
+            [id]
+        );
+        if (reportRes.rowCount === 0) return res.status(404).json({ error: 'Report not found' });
+
+        const report = reportRes.rows[0];
+        const userData = await User.findById(report.created_by);
+        if (!userData || userData.isDeleted) {
+            return res.status(404).json({ error: 'Reporter not found' });
+        }
+
+        if (EMAIL_ENABLED) {
+            emailQueue.add({
+                type: "ADMIN_FEEDBACK",
+                data: {
+                    to: userData.email,
+                    username: userData.username || "User",
+                    reportId: report.id,
+                    description: report.description || "No description",
+                    message: message.trim(),
+                    sentBy: req.user.username || "Authority",
+                },
+            }, { attempts: 3, backoff: 30000 });
+        }
+
+        res.json({ message: 'Feedback sent to reporter' });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 };

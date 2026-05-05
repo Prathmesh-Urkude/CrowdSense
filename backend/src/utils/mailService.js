@@ -86,6 +86,36 @@ Team CrowdSense`;
     await sendEmail({ to, subject, text, html });
 };
 
+export const sendAdminFeedbackEmail = async ({ to, username, reportId, description, message, sentBy }) => {
+    const reportLink = `http://localhost:5173/issues/${reportId}`;
+    const subject = `Message from Authority Regarding Your Report #${reportId.slice(-8)}`;
+
+    const text = `Hi ${username},\n\nAn authority has sent you a message regarding your reported issue.\n\nReport ID: ${reportId}\nDescription: ${description}\n\nMessage from ${sentBy}:\n${message}\n\nView your report: ${reportLink}\n\nThank you for contributing to CrowdSense.\n- Team CrowdSense`;
+
+    const html = `
+  <div style="font-family:Arial,sans-serif;background:#f4f6f8;padding:20px;">
+    <div style="max-width:600px;margin:auto;background:#fff;padding:25px;border-radius:10px;">
+      <h2 style="color:#2c3e50;">📩 Message from Authority</h2>
+      <p>Hi <strong>${username}</strong>,</p>
+      <p>An authority has sent you a message regarding your reported issue.</p>
+      <div style="background:#f9fafb;padding:15px;border-radius:8px;margin:15px 0;">
+        <p><strong>Report ID:</strong> ${reportId}</p>
+        <p><strong>Description:</strong> ${description}</p>
+      </div>
+      <div style="background:#eef6ff;border-left:4px solid #2563eb;padding:15px;border-radius:4px;margin:15px 0;">
+        <p style="font-style:italic;color:#333;margin:0;">"${message}"</p>
+        <p style="font-size:13px;color:#666;margin:8px 0 0;">— ${sentBy}</p>
+      </div>
+      <div style="text-align:center;margin:25px 0;">
+        <a href="${reportLink}" style="background:#2563eb;color:#fff;padding:12px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">View Your Report</a>
+      </div>
+      <p style="font-size:12px;color:#999;text-align:center;">© ${new Date().getFullYear()} CrowdSense</p>
+    </div>
+  </div>`;
+
+    await sendEmail({ to, subject, text, html });
+};
+
 export const sendStatusUpdateEmail = async ({
     to,
     username,
@@ -98,7 +128,7 @@ export const sendStatusUpdateEmail = async ({
     updatedBy,
     updatedAt
 }) => {
-    const reportLink = `http://localhost:5173/reports/${reportId}`;
+    const reportLink = `http://localhost:5173/issues/${reportId}`;
 
     const subject = `Update on Your Report #${reportId}`;
 
