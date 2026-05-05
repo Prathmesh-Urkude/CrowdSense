@@ -372,9 +372,9 @@ const Dashboard: React.FC = () => {
             <ResponsiveContainer width="100%" height={200}>
               <BarChart
                 data={reports.slice(0, 8).map(r => ({
-                  name: `#${r.id}`,
-                  priority: r.priority_score,
-                  severity: r.severity_score,
+                  name: `#${r.id.slice(-6)}`,
+                  priority: Math.round(r.priority_score),
+                  severity: Math.round(r.severity_score),
                 }))}
                 margin={{ top: 5, right: 10, bottom: 0, left: -20 }}
               >

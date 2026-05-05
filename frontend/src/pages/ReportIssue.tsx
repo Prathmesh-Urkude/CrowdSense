@@ -17,18 +17,18 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import { latLng } from 'leaflet';
 import type { LatLng } from 'leaflet';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDropzone } from 'react-dropzone';
 import {
   Camera, MapPin, Brain, CheckCircle2, AlertTriangle,
   X, ChevronRight, ChevronLeft, Zap, BarChart3,
-  DollarSign, Clock, Upload, Navigation,
+  Clock, Upload, Navigation, ThumbsUp, ExternalLink,
 } from 'lucide-react';
 import { SeverityBadge, SeverityBar, PriorityRing } from '../components/SeverityBadge';
 import toast from 'react-hot-toast';
-import { aiAPI, reportsAPI } from '../utils/api';
-import type { SeverityLevel } from '../types';
+import { aiAPI, reportsAPI, upvoteAPI } from '../utils/api';
+import type { BackendReport, SeverityLevel } from '../types';
 
 // ─── Categories ───────────────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -48,7 +48,6 @@ interface AIResult {
   confidence: number;
   damageType: string;
   estimatedArea: number;
-  repairEstimate: string;
   urgencyReason: string;
   detectedFeatures: string[];
   suggestedCategory: string;
@@ -66,7 +65,6 @@ function mockFallback(): AIResult {
     confidence: 0.82 + Math.random() * 0.13,
     damageType: 'Road Damage',
     estimatedArea: +(Math.random() * 8 + 0.5).toFixed(1),
-    repairEstimate: score >= 70 ? '₹15,000 – ₹30,000' : '₹5,000 – ₹15,000',
     urgencyReason: 'Infrastructure damage detected',
     detectedFeatures: ['Surface deformation', 'Edge cracking'],
     suggestedCategory: 'other',
@@ -85,7 +83,6 @@ function normaliseAIResponse(raw: any): AIResult {
     confidence: raw.confidence ?? 0.85,
     damageType: raw.damage_type ?? raw.damageType ?? 'Road Damage',
     estimatedArea: raw.estimated_area ?? raw.estimatedArea ?? 1.0,
-    repairEstimate: raw.repair_estimate ?? raw.repairEstimate ?? '₹5,000 – ₹15,000',
     urgencyReason: raw.urgency_reason ?? raw.urgencyReason ?? 'Infrastructure damage',
     detectedFeatures: raw.detected_features ?? raw.detectedFeatures ?? [],
     suggestedCategory: (raw.damage_type ?? raw.damageType ?? '').toLowerCase().includes('pothole')
@@ -93,6 +90,92 @@ function normaliseAIResponse(raw: any): AIResult {
       : 'crack',
   };
 }
+
+// ─── Duplicate detection helpers ─────────────────────────────────────────────
+const LS_KEY = 'cs_reported_images';
+
+const getStoredHashes = (): string[] => {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; }
+};
+
+const saveImageHash = (fp: string) => {
+  const hashes = getStoredHashes();
+  if (!hashes.includes(fp)) {
+    localStorage.setItem(LS_KEY, JSON.stringify([...hashes, fp]));
+  }
+};
+
+const getFileFingerprint = (file: File): string =>
+  `${file.size}-${file.lastModified}-${file.name}`;
+
+function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ─── Duplicate Modal ──────────────────────────────────────────────────────────
+const DuplicateModal: React.FC<{
+  report: BackendReport;
+  onUpvoteAndGo: () => void;
+  onSubmitAnyway: () => void;
+  onClose: () => void;
+}> = ({ report, onUpvoteAndGo, onSubmitAnyway, onClose }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95, y: 16 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      className="relative z-10 w-full max-w-md cs-card p-6"
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <AlertTriangle size={18} className="text-amber" />
+          <h2 className="font-display text-lg font-bold text-white">Similar Report Exists</h2>
+        </div>
+        <button onClick={onClose} className="text-gray-500 hover:text-white transition"><X size={18} /></button>
+      </div>
+      <p className="text-sm text-gray-400 mb-4">
+        A report for this issue already exists nearby. Upvoting it raises its priority faster than filing a duplicate.
+      </p>
+      <div className="p-3 bg-bg-elevated rounded-xl border border-border mb-5">
+        {report.image_url && (
+          <img
+            src={`http://localhost:5000${report.image_url}`}
+            alt="existing report"
+            className="w-full h-28 object-cover rounded-lg mb-2"
+          />
+        )}
+        <p className="text-sm text-gray-300 line-clamp-2">{report.description || 'No description'}</p>
+        <p className="text-xs text-gray-500 mt-1 capitalize">{report.category?.replace(/_/g, ' ')} · {report.status}</p>
+      </div>
+      <div className="flex flex-col gap-2">
+        <button
+          onClick={onUpvoteAndGo}
+          className="btn-primary w-full py-3 rounded-xl text-sm flex items-center justify-center gap-2"
+        >
+          <ThumbsUp size={14} /> Upvote Existing Report
+        </button>
+        <Link
+          to={`/issues/${report.id}`}
+          className="w-full py-2.5 rounded-xl text-sm border border-border bg-bg-elevated text-gray-300 hover:text-white transition flex items-center justify-center gap-2"
+        >
+          <ExternalLink size={13} /> View Report
+        </Link>
+        <button
+          onClick={onSubmitAnyway}
+          className="text-xs text-gray-500 hover:text-gray-300 transition py-1"
+        >
+          Submit new report anyway
+        </button>
+      </div>
+    </motion.div>
+  </div>
+);
 
 // ─── Map Location Picker ──────────────────────────────────────────────────────
 const LocationPicker: React.FC<{ onPick: (ll: LatLng) => void }> = ({ onPick }) => {
@@ -121,6 +204,7 @@ const ReportIssue: React.FC = () => {
   const [analyzing, setAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState<AIResult | null>(null);
   const [imageUrl, setImageUrl] = useState<string>('');
+  const [currentFileHash, setCurrentFileHash] = useState<string>('');
 
   // Step 2 state
   const [category, setCategory] = useState('');
@@ -129,13 +213,44 @@ const ReportIssue: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [locating, setLocating] = useState(false);
 
+  // Duplicate detection state
+  const [allReports, setAllReports] = useState<BackendReport[]>([]);
+  const [nearbyReport, setNearbyReport] = useState<BackendReport | null>(null);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [pendingLocation, setPendingLocation] = useState<LatLng | null>(null);
+
+  useEffect(() => {
+    reportsAPI.getAll()
+      .then(res => setAllReports(Array.isArray(res.data) ? res.data : []))
+      .catch(() => {});
+  }, []);
+
   // ─── Dropzone ─────────────────────────────────────────────────────────────
-  const onDrop = useCallback((accepted: File[]) => {
+  const onDrop = useCallback(async (accepted: File[]) => {
     const file = accepted[0];
     if (!file) return;
+
+    const fp = getFileFingerprint(file);
+    setCurrentFileHash(fp);
+
+    try {
+      const dupRes = await reportsAPI.checkDuplicate(fp);
+      const dup = dupRes.data as any;
+      if (dup?.duplicate && dup?.report) {
+        setNearbyReport(dup.report);
+        setShowDuplicateModal(true);
+        return;
+      }
+    } catch {
+      if (getStoredHashes().includes(fp)) {
+        toast.error('This image has already been reported.');
+        return;
+      }
+    }
+
     setImageFile(file);
     setPreview(URL.createObjectURL(file));
-    setAiResult(null); // reset if re-uploading
+    setAiResult(null);
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -144,6 +259,21 @@ const ReportIssue: React.FC = () => {
     maxFiles: 1,
     multiple: false,
   });
+
+  // ─── Handle location pick with geo-proximity duplicate check ─────────────
+  const handleLocationPick = (ll: LatLng) => {
+    const nearby = allReports.find(r =>
+      r.lat != null && r.lng != null &&
+      haversineDistance(ll.lat, ll.lng, r.lat, r.lng) < 100
+    );
+    if (nearby) {
+      setPendingLocation(ll);
+      setNearbyReport(nearby);
+      setShowDuplicateModal(true);
+    } else {
+      setLocation(ll);
+    }
+  };
 
   // ─── Step 1: Call AI service ──────────────────────────────────────────────
   const handleAnalyze = async () => {
@@ -155,13 +285,21 @@ const ReportIssue: React.FC = () => {
       const res = await aiAPI.analyze(fd);
       const url = res.data?.image_url ?? res.data?.imageUrl ?? '';
       setImageUrl(url);
+      // HTTP 207: AI service failed but image was saved — use mock fallback
+      if (res.status === 207) {
+        const fallback = mockFallback();
+        setAiResult(fallback);
+        setCategory(fallback.suggestedCategory);
+        toast('AI service unavailable — using estimated results.', { icon: '⚠️' });
+        setStep(1);
+        return;
+      }
       const normalised = normaliseAIResponse(res.data.result ?? res.data);
       setAiResult(normalised);
       setCategory(normalised.suggestedCategory || 'other');
       toast.success('AI analysis complete!');
       setStep(1);
     } catch (err: any) {
-      // AI service down → use mock and still proceed
       console.warn('AI service unavailable, using mock:', err?.message);
       const fallback = mockFallback();
       setAiResult(fallback);
@@ -230,7 +368,9 @@ const ReportIssue: React.FC = () => {
         lat: location.lat,
         lng: location.lng,
         categoryByUser: category,
-      });
+        file_fingerprint: currentFileHash || undefined,
+      } as any);
+      if (currentFileHash) saveImageHash(currentFileHash);
       toast.success('Report submitted successfully!');
       navigate('/dashboard');
     } catch (err: any) {
@@ -374,11 +514,10 @@ const ReportIssue: React.FC = () => {
                 </div>
 
                 {/* Quick stats */}
-                <div className="grid grid-cols-3 gap-3 mb-4">
+                <div className="grid grid-cols-2 gap-3 mb-4">
                   {[
-                    { icon: BarChart3,  label: 'Area',    val: `${aiResult.estimatedArea} m²` },
-                    { icon: DollarSign, label: 'Repair',  val: aiResult.repairEstimate },
-                    { icon: Clock,      label: 'SLA',     val: aiResult.severity === 'critical' ? '< 24h' : '< 48h' },
+                    { icon: BarChart3, label: 'Area', val: `${aiResult.estimatedArea} m²` },
+                    { icon: Clock,     label: 'SLA',  val: aiResult.severity === 'critical' ? '< 24h' : '< 48h' },
                   ].map(s => (
                     <div key={s.label} className="p-3 bg-bg-elevated rounded-xl text-center">
                       <s.icon size={15} className="text-amber mx-auto mb-1" />
@@ -468,7 +607,7 @@ const ReportIssue: React.FC = () => {
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                       attribution='&copy; OpenStreetMap contributors'
                     />
-                    <LocationPicker onPick={setLocation} />
+                    <LocationPicker onPick={handleLocationPick} />
                     <FlyToLocation position={location} />
                     {location && <Marker position={location} />}
                   </MapContainer>
@@ -516,6 +655,28 @@ const ReportIssue: React.FC = () => {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Duplicate modal */}
+      {showDuplicateModal && nearbyReport && (
+        <DuplicateModal
+          report={nearbyReport}
+          onUpvoteAndGo={async () => {
+            try { await upvoteAPI.toggle(nearbyReport.id); toast.success('Upvoted!'); } catch {}
+            navigate(`/issues/${nearbyReport.id}`);
+          }}
+          onSubmitAnyway={() => {
+            if (pendingLocation) setLocation(pendingLocation);
+            setPendingLocation(null);
+            setShowDuplicateModal(false);
+            setNearbyReport(null);
+          }}
+          onClose={() => {
+            setPendingLocation(null);
+            setShowDuplicateModal(false);
+            setNearbyReport(null);
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -13,6 +13,7 @@ import ReportIssue from './pages/ReportIssue';
 import IssuesList from './pages/IssuesList';
 import IssueDetail from './pages/IssueDetail';
 import AdminDashboard from './pages/AdminDashboard';
+import MyReports from './pages/MyReports';
 
 // ─── Protected Route ──────────────────────────────────────────────────────────
 const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean }> = ({ children, adminOnly }) => {
@@ -65,6 +66,11 @@ const AppRoutes: React.FC = () => (
     } />
     <Route path="/report" element={
       <ProtectedRoute><AppLayout><ReportIssue /></AppLayout></ProtectedRoute>
+    } />
+
+    {/* My Reports */}
+    <Route path="/my-reports" element={
+      <ProtectedRoute><AppLayout><MyReports /></AppLayout></ProtectedRoute>
     } />
 
     {/* Admin */}
