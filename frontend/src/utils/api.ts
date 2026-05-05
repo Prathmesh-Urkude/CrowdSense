@@ -11,8 +11,6 @@ const api = axios.create({
 });
 
 // ─── Response interceptor: auto-refresh on 401 ───────────────────────────────
-// Only redirect to /login from protected pages, never from auth routes themselves
-// (avoids an infinite loop when /auth/me returns 401 on the login page)
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
@@ -25,7 +23,6 @@ api.interceptors.response.use(
         await api.post('/auth/refresh');
         return api(original);
       } catch {
-        // Only redirect if not already on a public page
         const pub = ['/', '/login', '/register', '/issues'];
         const onPublic = pub.some(p => window.location.pathname.startsWith(p));
         if (!onPublic) window.location.href = '/login';
@@ -54,16 +51,19 @@ export const authAPI = {
   },
 };
 
-// ─── Reports (backend: GET/POST /reports) ────────────────────────────────────
+// ─── Reports (/reports) ───────────────────────────────────────────────────────
 export const reportsAPI = {
-  /** GET /reports — returns top 10 by priority_score */
+  /** GET /reports — top 20 by priority_score (status = reported | under-review) */
   getAll: () => api.get<BackendReport[]>('/reports'),
 
-  /**
-   * POST /reports — multipart/form-data
-   * Fields: description (text), lat (text), lng (text)
-   * File:   image (single image file, field name "image")
-   */
+  /** GET /reports/:reportId */
+  getById: (id: string) =>
+    api.get<{ report: BackendReport; user?: any } | BackendReport>(`/reports/${id}`),
+
+  /** GET /reports/user — current user's reports */
+  getUserReports: () => api.get<BackendReport[]>('/reports/user'),
+
+  /** POST /reports */
   create: (data: {
     image_url: string;
     aiResult: object;
@@ -71,12 +71,21 @@ export const reportsAPI = {
     lat: number;
     lng: number;
     categoryByUser: string;
+    file_fingerprint?: string;
   }) => api.post('/reports', data),
 
-  /** DELETE /reports/:id  (needs backend endpoint) */
+  /** POST /reports/user/:reportId/feedback */
+  submitFeedback: (reportId: string, rating: number, comment: string) =>
+    api.post(`/reports/user/${reportId}/feedback`, { rating, comment }),
+
+  /** GET /reports/check-duplicate?fp=xxx — returns { duplicate, report? } */
+  checkDuplicate: (fp: string) =>
+    api.get<{ duplicate: boolean; report?: BackendReport }>('/reports/check-duplicate', { params: { fp } }),
+
+  /** DELETE /reports/:id */
   delete: (id: string | number) => api.delete(`/reports/${id}`),
 
-  /** PATCH /reports/:id/status  (needs backend endpoint) */
+  /** PATCH /reports/:id/status */
   updateStatus: (id: string | number, status: string) =>
     api.patch(`/report/${id}/status`, { status,  }),
 };
@@ -95,12 +104,8 @@ export const upvoteAPI = {
     api.get<{ upvoted: boolean }>(`/upvote/${reportId}/status`),
 };
 
-// ─── AI service (port 5001) ───────────────────────────────────────────────────
+// ─── AI service ───────────────────────────────────────────────────────────────
 export const aiAPI = {
-  /**
-   * POST /analyze — Send image FormData to AI micro-service.
-   * The AI service returns analysis result (damage_type, severity_score, etc.)
-   */
   analyze: (imageData: FormData) =>
     api.post<AIAnalysis | any>('/ai/analyze', imageData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -110,25 +115,13 @@ export const aiAPI = {
 
 // ─── Admin (/admin) ───────────────────────────────────────────────────────────
 export const adminAPI = {
-  /** GET /admin — Welcome message (confirms admin access) */
   ping: () => api.get('/admin'),
 
-  /**
-   * POST /admin/create-admin
-   * Promotes an existing user (by email) to admin role.
-   */
   promoteToAdmin: (email: string) =>
     api.post('/admin/create-admin', { email }),
 
-  /**
-   * Register a brand-new user via public signup endpoint.
-   * Then optionally promote with promoteToAdmin.
-   */
   createUser: (data: { username: string; email: string; password: string }) =>
     api.post('/auth/signup', data),
-
-  // ── The following routes don't exist yet in the backend ──────────────────
-  // They are wired up in the UI; if the backend adds them later they'll work.
 
   getUsers: () =>
     api.get<ApiResponse<User[]>>('/admin/users'),
@@ -140,18 +133,16 @@ export const adminAPI = {
   updateReportStatus: (id: string | number, status: string) =>
     api.patch(`/admin/report/${id}/status`, { status }),
 
-  /** POST /admin/reports/:id/feedback — send feedback email to reporter */
+  /** POST /admin/report/:id/feedback — send feedback email to reporter */
   sendFeedback: (reportId: string | number, message: string) =>
     api.post(`/admin/report/${reportId}/feedback`, { message }),
 };
 
 // ─── Disputes (/reports/:id/dispute) ─────────────────────────────────────────
 export const disputeAPI = {
-  /** POST /reports/:id/dispute — file a dispute on a resolved/closed report */
   file: (reportId: string, reason: string, comment?: string) =>
     api.post(`/reports/${reportId}/dispute`, { reason, comment }),
 
-  /** GET /reports/:id/disputes — admin fetch all disputes for a report */
   getForReport: (reportId: string) =>
     api.get(`/reports/${reportId}/disputes`),
 };

@@ -38,16 +38,20 @@ interface StatusBadgeProps {
   size?: 'sm' | 'md';
 }
 
-const STATUS_CONFIG = {
-  pending:     { label: 'Pending',     cls: 'status-open'        },
-  open:        { label: 'Open',        cls: 'status-open'        },
-  in_progress: { label: 'In Progress', cls: 'status-in_progress' },
-  resolved:    { label: 'Resolved',    cls: 'status-resolved'    },
-  closed:      { label: 'Closed',      cls: 'status-closed'      },
+const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
+  reported:       { label: 'Reported',     cls: 'status-open'        },
+  pending:        { label: 'Pending',      cls: 'status-open'        },
+  open:           { label: 'Open',         cls: 'status-open'        },
+  'under-review': { label: 'Under Review', cls: 'status-in_progress' },
+  assigned:       { label: 'Assigned',     cls: 'status-in_progress' },
+  in_progress:    { label: 'In Progress',  cls: 'status-in_progress' },
+  resolved:       { label: 'Resolved',     cls: 'status-resolved'    },
+  closed:         { label: 'Closed',       cls: 'status-closed'      },
+  rejected:       { label: 'Rejected',     cls: 'status-closed'      },
 };
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' }) => {
-  const cfg = STATUS_CONFIG[status];
+  const cfg = STATUS_CONFIG[status] ?? { label: status, cls: 'status-open' };
   return (
     <span className={clsx(
       'inline-flex items-center rounded-full font-display uppercase tracking-widest',
@@ -66,7 +70,8 @@ interface PriorityRingProps {
   size?: number;
 }
 
-export const PriorityRing: React.FC<PriorityRingProps> = ({ score, size = 64 }) => {
+export const PriorityRing: React.FC<PriorityRingProps> = ({ score: rawScore, size = 64 }) => {
+  const score = Math.round(rawScore);
   const radius = (size - 8) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (score / 100) * circumference;
@@ -109,7 +114,7 @@ export const SeverityBar: React.FC<SeverityBarProps> = ({ score, label }) => {
       {label && (
         <div className="flex justify-between mb-1.5">
           <span className="text-xs text-gray-400">{label}</span>
-          <span className="text-xs font-mono font-medium" style={{ color }}>{score}/100</span>
+          <span className="text-xs font-mono font-medium" style={{ color }}>{Math.round(score)}/100</span>
         </div>
       )}
       <div className="h-2 bg-bg-elevated rounded-full overflow-hidden">
