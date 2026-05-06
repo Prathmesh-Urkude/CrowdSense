@@ -23,12 +23,12 @@ import { useDropzone } from 'react-dropzone';
 import {
   Camera, MapPin, Brain, CheckCircle2, AlertTriangle,
   X, ChevronRight, ChevronLeft, Zap, BarChart3,
-  Clock, Upload, Navigation, ArrowRight,
+  Clock, Upload, Navigation, ArrowRight, ThumbsUp,
 } from 'lucide-react';
 import { SeverityBadge, SeverityBar, PriorityRing } from '../components/SeverityBadge';
 import toast from 'react-hot-toast';
-import { aiAPI, reportsAPI } from '../utils/api';
-import type { SeverityLevel } from '../types';
+import { aiAPI, reportsAPI, upvoteAPI } from '../utils/api';
+import type { SeverityLevel, BackendReport } from '../types';
 
 // ─── Categories ───────────────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -119,6 +119,100 @@ const FlyToLocation: React.FC<{ position: LatLng | null }> = ({ position }) => {
   return null;
 };
 
+// ─── Duplicate Report Modal ───────────────────────────────────────────────────
+const IMG_BASE = 'http://localhost:5000';
+const resolveImg = (url: string | null) => {
+  if (!url) return null;
+  if (url.startsWith('http')) return url;
+  return `${IMG_BASE}${url.startsWith('/') ? url : `/${url}`}`;
+};
+
+const DuplicateModal: React.FC<{
+  report: BackendReport;
+  onUpvote: () => void;
+  onSubmitAnyway: () => void;
+  upvoting: boolean;
+}> = ({ report, onUpvote, onSubmitAnyway, upvoting }) => {
+  const imgSrc = resolveImg(report.image_url);
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="relative w-full max-w-md cs-card overflow-hidden"
+      >
+        {/* Header */}
+        <div className="p-5 border-b border-border bg-yellow-500/5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
+              <AlertTriangle size={18} className="text-yellow-400" />
+            </div>
+            <div>
+              <p className="font-display text-lg font-black text-white uppercase tracking-wide">
+                Report Already Exists
+              </p>
+              <p className="text-xs text-gray-400">A report was already filed at this location.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Existing report preview */}
+        <div className="p-5">
+          <div className="flex gap-3 p-3 bg-bg-elevated rounded-xl border border-border mb-4">
+            {imgSrc ? (
+              <img src={imgSrc} alt="existing"
+                className="w-20 h-16 rounded-lg object-cover flex-shrink-0 border border-border"
+                onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : (
+              <div className="w-20 h-16 rounded-lg bg-bg-card border border-border flex items-center justify-center flex-shrink-0">
+                <MapPin size={18} className="text-gray-600" />
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-xs font-display uppercase tracking-wider text-amber mb-1">
+                {report.category?.replace(/_/g, ' ') || 'Report'}
+              </p>
+              <p className="text-sm text-gray-200 line-clamp-2 leading-snug">
+                {report.description || 'No description provided.'}
+              </p>
+              <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500">
+                <span className="capitalize">{report.status?.replace(/_/g, ' ')}</span>
+                <span>· {report.upvote_count ?? 0} upvotes</span>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-sm text-gray-400 mb-4">
+            Would you like to <strong className="text-white">upvote</strong> the existing report to boost its priority,
+            or <strong className="text-white">discard</strong> your new submission?
+          </p>
+
+          <div className="flex gap-3">
+            <button
+              onClick={onUpvote}
+              disabled={upvoting}
+              className="flex-1 btn-primary py-3 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-40"
+            >
+              {upvoting
+                ? <><div className="spinner w-4 h-4 border-2" /> Upvoting…</>
+                : <><ThumbsUp size={15} /> Upvote & Discard Mine</>
+              }
+            </button>
+            <button
+              onClick={onSubmitAnyway}
+              className="flex-1 py-3 rounded-xl text-sm border border-border bg-bg-elevated text-gray-300 hover:text-white hover:border-gray-500 transition flex items-center justify-center gap-2"
+            >
+              <ArrowRight size={15} /> Upload Anyway
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 const ReportIssue: React.FC = () => {
   const navigate = useNavigate();
@@ -142,6 +236,10 @@ const ReportIssue: React.FC = () => {
 
   // AI "normal" (no damage) detection
   const [normalDetected, setNormalDetected] = useState(false);
+
+  // Duplicate detection
+  const [duplicateReport, setDuplicateReport] = useState<BackendReport | null>(null);
+  const [upvotingDuplicate, setUpvotingDuplicate] = useState(false);
 
   // ─── Dropzone ─────────────────────────────────────────────────────────────
   const onDrop = useCallback((accepted: File[]) => {
@@ -269,7 +367,34 @@ const ReportIssue: React.FC = () => {
     );
   };
 
-  // ─── Step 2: Submit report ────────────────────────────────────────────────
+  // ─── Do the actual API submit ─────────────────────────────────────────────
+  const doSubmit = async () => {
+    setSubmitting(true);
+    setDuplicateReport(null);
+    try {
+      await reportsAPI.create({
+        image_url: imageUrl,
+        aiResult: {
+          damage_type: aiResult!.damageType,
+          severity_score: +((aiResult!.severityScore / 100) * 15).toFixed(2),
+          priority_score: +(aiResult!.priorityScore / 100).toFixed(4),
+          confidence: aiResult!.confidence,
+        },
+        description,
+        lat: location!.lat,
+        lng: location!.lng,
+        categoryByUser: category,
+      } as any);
+      toast.success('Report submitted successfully!');
+      navigate('/dashboard');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error ?? 'Failed to submit report.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ─── Step 2: Submit — check for duplicate lat/lng first ──────────────────
   const handleSubmit = async () => {
     if (!location) { toast.error('Please select a location on the map.'); return; }
     if (!description.trim()) { toast.error('Please add a description.'); return; }
@@ -278,27 +403,50 @@ const ReportIssue: React.FC = () => {
 
     setSubmitting(true);
     try {
-      await reportsAPI.create({
-        image_url: imageUrl,
-        aiResult: {
-          damage_type: aiResult.damageType,
-          severity_score: +((aiResult.severityScore / 100) * 15).toFixed(2), // raw [0,15]
-          priority_score: +(aiResult.priorityScore / 100).toFixed(4),         // raw [0,1]
-          confidence: aiResult.confidence,
-        },
-        description,
-        lat: location.lat,
-        lng: location.lng,
-        categoryByUser: category,
-      } as any);
-      toast.success('Report submitted successfully!');
-      navigate('/dashboard');
-    } catch (err: any) {
-      const msg = err?.response?.data?.error ?? 'Failed to submit report.';
-      toast.error(msg);
-    } finally {
-      setSubmitting(false);
+      const res = await reportsAPI.getAll();
+      const existing: BackendReport[] = Array.isArray(res.data) ? res.data : [];
+      const THRESHOLD = 0.00005; // ~5 m — only exact same pin
+      const dup = existing.find(r =>
+        r.lat != null && r.lng != null &&
+        r.category === category &&
+        Math.abs(r.lat - location.lat) < THRESHOLD &&
+        Math.abs(r.lng - location.lng) < THRESHOLD
+      );
+      if (dup) {
+        setDuplicateReport(dup);
+        setSubmitting(false);
+        return;
+      }
+    } catch {
+      // If the check fails, allow submission to proceed
     }
+    setSubmitting(false);
+    await doSubmit();
+  };
+
+  // ─── Duplicate modal handlers ─────────────────────────────────────────────
+  const handleUpvoteDuplicate = async () => {
+    if (!duplicateReport) return;
+    setUpvotingDuplicate(true);
+    try {
+      const statusRes = await upvoteAPI.getStatus(duplicateReport.id);
+      if (statusRes.data.hasUpvoted) {
+        toast('You already upvoted this report!', { icon: '👍' });
+      } else {
+        await upvoteAPI.toggle(duplicateReport.id);
+        toast.success('Upvoted! Thanks for supporting this report.');
+      }
+    } catch {
+      toast.error('Could not upvote — please try again.');
+    } finally {
+      setUpvotingDuplicate(false);
+      navigate('/dashboard');
+    }
+  };
+
+  const handleDiscardDuplicate = () => {
+    setDuplicateReport(null);
+    navigate('/dashboard');
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -612,6 +760,17 @@ const ReportIssue: React.FC = () => {
         </AnimatePresence>
       </div>
 
+      {/* Duplicate report modal */}
+      <AnimatePresence>
+        {duplicateReport && (
+          <DuplicateModal
+            report={duplicateReport}
+            onUpvote={handleUpvoteDuplicate}
+            onSubmitAnyway={doSubmit}
+            upvoting={upvotingDuplicate}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
