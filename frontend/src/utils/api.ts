@@ -82,7 +82,7 @@ export const reportsAPI = {
   checkDuplicate: (fp: string) =>
     api.get<{ duplicate: boolean; report?: BackendReport }>('/reports/check-duplicate', { params: { fp } }),
 
-  /** DELETE /reports/:id */
+  /** DELETE /reports/:id — owner only */
   delete: (id: string | number) => api.delete(`/reports/${id}`),
 
   /** PATCH /reports/:id/status */
@@ -128,12 +128,14 @@ export const adminAPI = {
   getUsers: () =>
     api.get<ApiResponse<User[]>>('/admin/users'),
 
-  deleteReport: (id: string) => api.delete(`/report/${id}`),
+  deleteReport: (id: string) => api.delete(`/admin/report/${id}`),
 
   deleteUser: (userId: string) => api.delete(`/admin/delete-user/${userId}`),
 
-  updateReportStatus: (id: string | number, status: string) =>
-    api.patch(`/admin/report/${id}/status`, { status }),
+  updateReportStatus: (id: string | number, status: string, remark?: string) =>
+    api.patch(`/admin/report/${id}/status`, { status, remark }),
+
+  getAllReports: () => api.get<BackendReport[]>('/admin/reports'),
 
   /** POST /admin/report/:id/feedback — send feedback email to reporter */
   sendFeedback: (reportId: string | number, message: string) =>

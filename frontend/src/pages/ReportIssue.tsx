@@ -282,8 +282,8 @@ const ReportIssue: React.FC = () => {
         image_url: imageUrl,
         aiResult: {
           damage_type: aiResult.damageType,
-          severity_score: aiResult.severityScore,
-          priority_score: aiResult.priorityScore,
+          severity_score: +((aiResult.severityScore / 100) * 15).toFixed(2), // raw [0,15]
+          priority_score: +(aiResult.priorityScore / 100).toFixed(4),         // raw [0,1]
           confidence: aiResult.confidence,
         },
         description,

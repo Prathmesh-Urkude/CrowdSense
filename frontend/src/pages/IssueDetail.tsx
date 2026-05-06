@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft, MapPin, ThumbsUp, MessageCircle, Clock,
-  Share2, CheckCircle2, Zap, BarChart3,
+  Share2, CheckCircle2, Zap,
   Activity, Brain, AlertTriangle, X, Star,
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker } from 'react-leaflet';
@@ -213,7 +213,17 @@ const IssueDetail: React.FC = () => {
     );
   }
 
-  const severity = severityFromScore(report.severity_score);
+  // severity: old reports stored scaled [0,100], new reports store raw [0,15]
+  const rawSeverity = report.severity_score > 15
+    ? (report.severity_score / 100) * 15
+    : report.severity_score;
+  const displaySeverity = Math.min(Math.round((rawSeverity / 15) * 100), 100);
+  const displayPriority =
+    report.priority_score <= 1   ? Math.min(Math.round(report.priority_score * 100), 100)
+    : report.priority_score <= 15 ? Math.min(Math.round((report.priority_score / 15) * 100), 100)
+    : Math.min(Math.round(report.priority_score), 100);
+
+  const severity = severityFromScore(displaySeverity);
   const status = (report.status as any) ?? 'open';
 
   const lat = report.lat ?? null;
@@ -255,7 +265,7 @@ const IssueDetail: React.FC = () => {
                     {report.category?.replace(/_/g, ' ').toUpperCase() || 'ROAD DAMAGE REPORT'}
                   </h1>
                 </div>
-                <PriorityRing score={report.priority_score} size={72} />
+                <PriorityRing score={displayPriority} size={72} />
               </div>
 
               {/* Description */}
@@ -332,11 +342,11 @@ const IssueDetail: React.FC = () => {
             {report.image_url && (
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="cs-card p-4">
                 <h3 className="font-display text-base font-bold text-white uppercase tracking-wide mb-3">Photo</h3>
-                <div className="rounded-xl overflow-hidden max-h-80 bg-bg-elevated">
+                <div className="rounded-xl overflow-hidden bg-bg-elevated flex items-center justify-center">
                   <img
                     src={`http://localhost:5000${report.image_url}`}
                     alt="report"
-                    className="w-full h-full object-cover"
+                    className="w-full object-contain max-h-[480px]"
                   />
                 </div>
               </motion.div>
@@ -472,7 +482,7 @@ const IssueDetail: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-3 mb-4 p-3 bg-bg-elevated rounded-xl">
-                <PriorityRing score={report.priority_score} size={56} />
+                <PriorityRing score={displayPriority} size={56} />
                 <div>
                   <SeverityBadge severity={severity} size="md" />
                   <p className="text-sm font-bold text-white mt-1 capitalize">
@@ -482,14 +492,13 @@ const IssueDetail: React.FC = () => {
               </div>
 
               <div className="space-y-2.5 mb-4">
-                <SeverityBar score={report.severity_score} label="Severity Score" />
-                <SeverityBar score={report.priority_score} label="Priority Score" />
+                <SeverityBar score={displaySeverity} label="Severity Score" displayText={`${rawSeverity.toFixed(1)}/15`} />
+                <SeverityBar score={displayPriority} label="Priority Score" />
               </div>
 
               <div className="space-y-2 text-xs">
                 {[
-                  { icon: BarChart3, label: 'Severity Score', val: `${Math.round(report.severity_score)}/100` },
-                  { icon: Clock,     label: 'SLA Target',     val: severity === 'critical' ? '< 24 h' : severity === 'high' ? '< 48 h' : '< 7 days' },
+                  { icon: Clock, label: 'SLA Target', val: severity === 'critical' ? '< 24 h' : severity === 'high' ? '< 48 h' : '< 7 days' },
                 ].map(s => (
                   <div key={s.label} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
                     <span className="flex items-center gap-1.5 text-gray-500"><s.icon size={12} />{s.label}</span>

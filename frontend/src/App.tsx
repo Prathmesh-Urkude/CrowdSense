@@ -14,6 +14,8 @@ import IssuesList from './pages/IssuesList';
 import IssueDetail from './pages/IssueDetail';
 import AdminDashboard from './pages/AdminDashboard';
 import MyReports from './pages/MyReports';
+import ProfilePage from './pages/ProfilePage';
+import SettingsPage from './pages/SettingsPage';
 
 // ─── Protected Route ──────────────────────────────────────────────────────────
 const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean }> = ({ children, adminOnly }) => {
@@ -71,6 +73,16 @@ const AppRoutes: React.FC = () => (
     {/* My Reports */}
     <Route path="/my-reports" element={
       <ProtectedRoute><AppLayout><MyReports /></AppLayout></ProtectedRoute>
+    } />
+
+    {/* Profile */}
+    <Route path="/profile" element={
+      <ProtectedRoute><AppLayout><ProfilePage /></AppLayout></ProtectedRoute>
+    } />
+
+    {/* Settings */}
+    <Route path="/settings" element={
+      <ProtectedRoute><AppLayout><SettingsPage /></AppLayout></ProtectedRoute>
     } />
 
     {/* Admin */}

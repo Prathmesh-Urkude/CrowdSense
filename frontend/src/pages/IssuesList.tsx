@@ -7,18 +7,6 @@ import type { Issue, SeverityLevel, IssueStatus, IssueCategory, BackendReport } 
 import { reportsAPI } from '../utils/api';
 import clsx from 'clsx';
 
-// ─── Hardcoded mock issues (always visible) ───────────────────────────────────
-const MOCK_ISSUES: Issue[] = [
-  { id: 'i001', title: 'Large pothole on MG Road near bus stop 14', description: 'Deep pothole, vehicle damage reported. Multiple commuters affected.', category: 'pothole', status: 'open', severity: 'critical', priorityScore: 92, location: { address: 'MG Road, Bus Stop 14', city: 'Pune', coordinates: { lat: 18.5204, lng: 73.8567 } }, images: [], aiAnalysis: { severity: 'critical', severityScore: 89, priorityScore: 92, confidence: 0.94, damageType: 'Pothole', estimatedArea: 2.4, repairEstimate: '₹18,000–₹25,000', urgencyReason: 'High traffic', detectedFeatures: ['Deep pothole'], boundingBoxes: [] }, reportedBy: { id: 'u1', name: 'Anonymous Citizen' }, upvotes: 47, comments: [], createdAt: new Date(Date.now() - 2 * 3600000).toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'i002', title: 'Road crack spreading — FC Road Shivajinagar', description: 'Long crack developing across the full width of the road.', category: 'crack', status: 'in_progress', severity: 'high', priorityScore: 74, location: { address: 'FC Road, Shivajinagar', city: 'Pune', coordinates: { lat: 18.53, lng: 73.845 } }, images: [], aiAnalysis: { severity: 'high', severityScore: 72, priorityScore: 74, confidence: 0.88, damageType: 'Crack', estimatedArea: 5.1, repairEstimate: '₹8,000–₹12,000', urgencyReason: 'Spreading', detectedFeatures: ['Cracking'], boundingBoxes: [] }, reportedBy: { id: 'u2', name: 'Anonymous Citizen' }, upvotes: 23, comments: [], createdAt: new Date(Date.now() - 8 * 3600000).toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'i003', title: 'Waterlogging Baner Road near Balewadi', description: 'Severe waterlogging after rain. Road unusable for 2–3 hours.', category: 'waterlogging', status: 'open', severity: 'medium', priorityScore: 58, location: { address: 'Baner Road, Balewadi', city: 'Pune', coordinates: { lat: 18.559, lng: 73.787 } }, images: [], aiAnalysis: { severity: 'medium', severityScore: 55, priorityScore: 58, confidence: 0.82, damageType: 'Waterlogging', estimatedArea: 15, repairEstimate: '₹30,000–₹50,000', urgencyReason: 'Drainage failure', detectedFeatures: ['Standing water'], boundingBoxes: [] }, reportedBy: { id: 'u3', name: 'Anonymous Citizen' }, upvotes: 12, comments: [], createdAt: new Date(Date.now() - 24 * 3600000).toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'i004', title: 'Damaged footpath — Deccan Gymkhana', description: 'Footpath tiles broken and uplifted, hazard for pedestrians.', category: 'damaged_footpath', status: 'resolved', severity: 'low', priorityScore: 35, location: { address: 'Deccan Gymkhana', city: 'Pune', coordinates: { lat: 18.5167, lng: 73.837 } }, images: [], aiAnalysis: { severity: 'low', severityScore: 30, priorityScore: 35, confidence: 0.91, damageType: 'Footpath', estimatedArea: 3.2, repairEstimate: '₹5,000–₹8,000', urgencyReason: 'Pedestrian safety', detectedFeatures: ['Lifted tiles'], boundingBoxes: [] }, reportedBy: { id: 'u4', name: 'Anonymous Citizen' }, upvotes: 8, comments: [], createdAt: new Date(Date.now() - 48 * 3600000).toISOString(), updatedAt: new Date().toISOString(), resolvedAt: new Date().toISOString() },
-  { id: 'i005', title: 'Broken divider — Pune-Mumbai Highway', description: 'Road divider damaged, creating a safety hazard at Km 14.', category: 'broken_divider', status: 'open', severity: 'high', priorityScore: 81, location: { address: 'Pune-Mumbai Hwy, Km 14', city: 'Pune', coordinates: { lat: 18.6298, lng: 73.7997 } }, images: [], aiAnalysis: { severity: 'high', severityScore: 78, priorityScore: 81, confidence: 0.9, damageType: 'Divider', estimatedArea: 8, repairEstimate: '₹20,000–₹35,000', urgencyReason: 'Highway safety', detectedFeatures: ['Broken concrete'], boundingBoxes: [] }, reportedBy: { id: 'u5', name: 'Anonymous Citizen' }, upvotes: 31, comments: [], createdAt: new Date(Date.now() - 3 * 3600000).toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'i006', title: 'Pothole cluster — Kothrud Market Road', description: 'Multiple potholes in a 50m stretch outside the market.', category: 'pothole', status: 'open', severity: 'critical', priorityScore: 88, location: { address: 'Kothrud Market Road', city: 'Pune', coordinates: { lat: 18.5062, lng: 73.8074 } }, images: [], aiAnalysis: { severity: 'critical', severityScore: 85, priorityScore: 88, confidence: 0.96, damageType: 'Multiple Potholes', estimatedArea: 7.5, repairEstimate: '₹40,000–₹60,000', urgencyReason: 'Cluster risk', detectedFeatures: ['Cluster damage'], boundingBoxes: [] }, reportedBy: { id: 'u6', name: 'Anonymous Citizen' }, upvotes: 55, comments: [], createdAt: new Date(Date.now() - 5 * 3600000).toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'i007', title: 'Crack on Aundh Road near D-Mart', description: 'Alligator cracking on the main road surface.', category: 'crack', status: 'open', severity: 'medium', priorityScore: 62, location: { address: 'Aundh Road, near D-Mart', city: 'Pune', coordinates: { lat: 18.5584, lng: 73.8076 } }, images: [], aiAnalysis: { severity: 'medium', severityScore: 60, priorityScore: 62, confidence: 0.85, damageType: 'Alligator Crack', estimatedArea: 4.0, repairEstimate: '₹10,000–₹18,000', urgencyReason: 'Spreading pattern', detectedFeatures: ['Surface fracture'], boundingBoxes: [] }, reportedBy: { id: 'u7', name: 'Anonymous Citizen' }, upvotes: 19, comments: [], createdAt: new Date(Date.now() - 6 * 3600000).toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'i008', title: 'Waterlogging at Viman Nagar underpass', description: 'Underpass floods heavily during rain, vehicles get stuck.', category: 'waterlogging', status: 'in_progress', severity: 'high', priorityScore: 77, location: { address: 'Viman Nagar Underpass', city: 'Pune', coordinates: { lat: 18.5679, lng: 73.9143 } }, images: [], aiAnalysis: { severity: 'high', severityScore: 75, priorityScore: 77, confidence: 0.87, damageType: 'Flood Zone', estimatedArea: 20, repairEstimate: '₹50,000–₹80,000', urgencyReason: 'Complete blockage', detectedFeatures: ['Standing water', 'Drainage blocked'], boundingBoxes: [] }, reportedBy: { id: 'u8', name: 'Anonymous Citizen' }, upvotes: 34, comments: [], createdAt: new Date(Date.now() - 10 * 3600000).toISOString(), updatedAt: new Date().toISOString() },
-];
-
 // ─── Convert BackendReport → Issue shape for IssueCard ────────────────────────
 function severityFromScore(score: number): SeverityLevel {
   return score >= 80 ? 'critical' : score >= 60 ? 'high' : score >= 40 ? 'medium' : 'low';
@@ -83,13 +71,8 @@ const IssuesList: React.FC = () => {
       .finally(() => setLoadingBackend(false));
   }, []);
 
-  // Merge: backend reports first, then mock issues whose id is not already from backend
-  const backendIds = new Set(backendIssues.map(i => i.id));
-  const mockOnly = MOCK_ISSUES.filter(m => !backendIds.has(m.id));
-  const ALL_ISSUES: Issue[] = [...backendIssues, ...mockOnly];
-
   // ── Filters & sort ──────────────────────────────────────────────────────────
-  const filtered = ALL_ISSUES
+  const filtered = backendIssues
     .filter(i => !filterSeverity || i.severity === filterSeverity)
     .filter(i => !filterStatus  || i.status   === filterStatus)
     .filter(i =>
@@ -117,12 +100,7 @@ const IssuesList: React.FC = () => {
           <h1 className="font-display text-4xl font-black text-white uppercase tracking-wide">All Issues</h1>
           <p className="text-gray-400 text-sm mt-1">
             {loadingBackend ? 'Loading…' : `${filtered.length} issue${filtered.length !== 1 ? 's' : ''} found`}
-            {!loadingBackend && hasFilters && ` (filtered from ${ALL_ISSUES.length})`}
-            {!loadingBackend && backendIssues.length > 0 && (
-              <span className="ml-2 text-xs text-amber">
-                · {backendIssues.length} live from database
-              </span>
-            )}
+            {!loadingBackend && hasFilters && ` (filtered from ${backendIssues.length})`}
           </p>
         </motion.div>
 
