@@ -103,18 +103,19 @@ export const PriorityRing: React.FC<PriorityRingProps> = ({ score: rawScore, siz
 
 // ─── Severity Score Bar ──────────────────────────────────────────────────────
 interface SeverityBarProps {
-  score: number; // 0-100
+  score: number;      // 0-100 (controls bar fill %)
   label?: string;
+  displayText?: string; // override the score label text
 }
 
-export const SeverityBar: React.FC<SeverityBarProps> = ({ score, label }) => {
+export const SeverityBar: React.FC<SeverityBarProps> = ({ score, label, displayText }) => {
   const color = score >= 80 ? '#EF4444' : score >= 60 ? '#F97316' : score >= 40 ? '#F59E0B' : '#22C55E';
   return (
     <div>
       {label && (
         <div className="flex justify-between mb-1.5">
           <span className="text-xs text-gray-400">{label}</span>
-          <span className="text-xs font-mono font-medium" style={{ color }}>{Math.round(score)}/100</span>
+          <span className="text-xs font-mono font-medium" style={{ color }}>{displayText ?? `${Math.round(score)}/100`}</span>
         </div>
       )}
       <div className="h-2 bg-bg-elevated rounded-full overflow-hidden">

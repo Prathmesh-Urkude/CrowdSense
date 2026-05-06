@@ -10,7 +10,7 @@ import {
   MapPin, ArrowRight, TrendingUp, Zap, Filter,
   ThumbsUp, Calendar, Activity,
 } from 'lucide-react';
-import { SeverityBadge, StatusBadge, PriorityRing } from '../components/SeverityBadge';
+import { SeverityBadge, PriorityRing } from '../components/SeverityBadge';
 import { useAuth } from '../context/AuthContext';
 import { reportsAPI, upvoteAPI } from '../utils/api';
 import type { BackendReport } from '../types';
@@ -92,10 +92,18 @@ const StatCard: React.FC<StatCardProps> = ({
 };
 
 // ─── Report Mini-Card ─────────────────────────────────────────────────────────
+const scalepri = (p: number) =>
+  p <= 1    ? Math.min(Math.round(p * 100), 100)
+  : p <= 15 ? Math.min(Math.round((p / 15) * 100), 100)
+  : Math.min(Math.round(p), 100);
+
 const ReportCard: React.FC<{ report: BackendReport; index: number }> = ({ report, index }) => {
   const [upvoted, setUpvoted] = useState<boolean | null>(null);
   const [count, setCount] = useState(report.upvote_count ?? 0);
-  const sev = severityFromScore(report.severity_score);
+  const sev = severityFromScore(report.severity_score > 15
+    ? Math.min(Math.round(report.severity_score), 100)
+    : Math.min(Math.round((report.severity_score / 15) * 100), 100));
+  const pri = scalepri(report.priority_score);
 
   useEffect(() => {
     let mounted = true;
@@ -197,7 +205,7 @@ const ReportCard: React.FC<{ report: BackendReport; index: number }> = ({ report
           <ThumbsUp size={12} className={upvoted ? 'fill-amber' : ''} />
           {count} Upvote{count !== 1 ? 's' : ''}
         </button>
-        <PriorityRing score={report.priority_score} size={40} />
+        <PriorityRing score={pri} size={40} />
       </div>
     </motion.div>
   );
@@ -221,12 +229,20 @@ const Dashboard: React.FC = () => {
     return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
   };
 
-  // Derived stats from real reports
+  // severity stored [0,15], priority stored [0,1] — scale to [0,100]
+  const scaleSev = (s: number) => s > 15
+    ? Math.min(Math.round(s), 100)           // legacy scaled [0,100]
+    : Math.min(Math.round((s / 15) * 100), 100); // raw [0,15]
+  const scalePri = (p: number) =>
+    p <= 1   ? Math.min(Math.round(p * 100), 100)          // upvote formula [0,1]
+    : p <= 15 ? Math.min(Math.round((p / 15) * 100), 100)  // postReport raw [0,10.5]
+    : Math.min(Math.round(p), 100);                         // legacy scaled
+
   const totalIssues   = reports.length;
   const openIssues    = reports.filter(r => ['reported','under-review','assigned','in_progress','open','pending'].includes(r.status ?? '')).length;
-  const criticalCount = reports.filter(r => r.severity_score >= 80).length;
+  const criticalCount = reports.filter(r => scaleSev(r.severity_score) >= 80).length;
   const avgPriority   = totalIssues
-    ? Math.round(reports.reduce((s, r) => s + r.priority_score, 0) / totalIssues)
+    ? Math.round(reports.reduce((s, r) => s + scalePri(r.priority_score), 0) / totalIssues)
     : 0;
 
   // Derived chart data from real reports
@@ -242,10 +258,10 @@ const Dashboard: React.FC = () => {
   const thisWeekCount = activityData.reduce((s, d) => s + d.reported, 0);
 
   const severityData = [
-    { name: 'Critical', value: reports.filter(r => r.severity_score >= 80).length,                            color: '#EF4444' },
-    { name: 'High',     value: reports.filter(r => r.severity_score >= 60 && r.severity_score < 80).length,   color: '#F97316' },
-    { name: 'Medium',   value: reports.filter(r => r.severity_score >= 40 && r.severity_score < 60).length,   color: '#F59E0B' },
-    { name: 'Low',      value: reports.filter(r => r.severity_score < 40).length,                             color: '#22C55E' },
+    { name: 'Critical', value: reports.filter(r => scaleSev(r.severity_score) >= 80).length,                                       color: '#EF4444' },
+    { name: 'High',     value: reports.filter(r => scaleSev(r.severity_score) >= 60 && scaleSev(r.severity_score) < 80).length,    color: '#F97316' },
+    { name: 'Medium',   value: reports.filter(r => scaleSev(r.severity_score) >= 40 && scaleSev(r.severity_score) < 60).length,    color: '#F59E0B' },
+    { name: 'Low',      value: reports.filter(r => scaleSev(r.severity_score) < 40).length,                                        color: '#22C55E' },
   ];
 
   if (loading) {
@@ -376,8 +392,8 @@ const Dashboard: React.FC = () => {
               <BarChart
                 data={reports.slice(0, 8).map(r => ({
                   name: `#${r.id.slice(-6)}`,
-                  priority: Math.round(r.priority_score),
-                  severity: Math.round(r.severity_score),
+                  priority: scalePri(r.priority_score),
+                  severity: scaleSev(r.severity_score),
                 }))}
                 margin={{ top: 5, right: 10, bottom: 0, left: -20 }}
               >
