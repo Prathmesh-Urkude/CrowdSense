@@ -52,7 +52,8 @@ const getUpvoteCount = async (req, res) => {
     const { reportId } = req.params;
 
     try {
-        const result = await pool.query(`SELECT upvote_count FROM reports WHERE report_id = $1`,[reportId]);
+        const result = await pool.query(`SELECT upvote_count FROM reports WHERE id = $1`,[reportId]);
+        if (!result.rows.length) return res.status(404).json({ error: 'Report not found' });
         res.status(200).json({reportId, upvotes: parseInt(result.rows[0].upvote_count)});
     } 
     catch (error) {

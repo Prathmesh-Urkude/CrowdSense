@@ -23,6 +23,6 @@ emailQueue.process(async (job) => {
     }
     catch (error) {
         console.error("Email failed:", error.message);
-        throw err;
+        throw error;
     }
 });

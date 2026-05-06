@@ -98,7 +98,7 @@ export const sendStatusUpdateEmail = async ({
     updatedBy,
     updatedAt
 }) => {
-    const reportLink = `http://localhost:5173/reports/${reportId}`;
+    const reportLink = `http://localhost:5173/issues/${reportId}`;
 
     const subject = `Update on Your Report #${reportId}`;
 
@@ -153,12 +153,18 @@ Thank you for contributing to CrowdSense.
 
       <p><strong>Remark:</strong> ${remark || "No additional remarks"}</p>
 
-      <div style="text-align:center; margin:25px 0;">
-        <a href="${reportLink}" 
-           style="background:#2563eb; color:#fff; padding:12px 20px; 
-                  text-decoration:none; border-radius:6px; font-weight:bold;">
+      <div style="text-align:center; margin:25px 0; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+        <a href="${reportLink}"
+           style="background:#2563eb; color:#fff; padding:12px 24px;
+                  text-decoration:none; border-radius:6px; font-weight:bold; display:inline-block;">
           View Full Report
         </a>
+        ${newStatus === 'resolved' ? `
+        <a href="${reportLink}"
+           style="background:#16a34a; color:#fff; padding:12px 24px;
+                  text-decoration:none; border-radius:6px; font-weight:bold; display:inline-block;">
+          Give Feedback
+        </a>` : ''}
       </div>
 
       <hr style="margin:20px 0;" />

@@ -61,7 +61,7 @@ export const reportsAPI = {
     api.get<{ report: BackendReport; user?: any } | BackendReport>(`/reports/${id}`),
 
   /** GET /reports/user — current user's reports */
-  getUserReports: () => api.get<BackendReport[]>('/reports/user'),
+  getUserReports: () => api.get<BackendReport[]>('/reports/user/all'),
 
   /** POST /reports */
   create: (data: {
@@ -78,9 +78,13 @@ export const reportsAPI = {
   submitFeedback: (reportId: string, rating: number, comment: string) =>
     api.post(`/reports/user/${reportId}/feedback`, { rating, comment }),
 
-  /** GET /reports/check-duplicate?fp=xxx — returns { duplicate, report? } */
-  checkDuplicate: (fp: string) =>
-    api.get<{ duplicate: boolean; report?: BackendReport }>('/reports/check-duplicate', { params: { fp } }),
+  /** POST /reports/check-duplicate?fp=xxx — returns { duplicate, report? } */
+  checkDuplicate: (data: {
+  lat: number;
+  lng: number;
+  category: string;
+}) =>
+    api.post<{ duplicate: boolean; report?: BackendReport }>('/reports/check-duplicate', data),
 
   /** DELETE /reports/:id — owner only */
   delete: (id: string | number) => api.delete(`/reports/${id}`),

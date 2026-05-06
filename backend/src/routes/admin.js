@@ -1,5 +1,6 @@
 import express from 'express';
 import { createAdmin, deleteUser, updateReportStatus, deleteReport, getAllUsers } from '../controllers/admin.js';
+import { getAllReportsAdmin } from '../controllers/reports.js';
 import { serverAdapter } from '../configs/bullBoard.js';
 
 const router = express.Router();
@@ -12,6 +13,7 @@ router.get('/', (req, res) => {
 });
 
 router.get('/users', getAllUsers);
+router.get('/reports', getAllReportsAdmin);
 
 router.post('/create-admin', createAdmin)
 router.delete('/delete-user/:id', deleteUser);

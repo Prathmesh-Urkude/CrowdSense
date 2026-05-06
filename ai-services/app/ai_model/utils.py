@@ -9,7 +9,7 @@ def calculate_severity(confidence, damage_type):
     elif damage_type == "longitudinal_crack":
         score += 1
     else : score = 0
-    return min(round(score, 2), 10)
+    return min(round(score, 2), 15)
 
 # def get_priority(score):
 #     if score < 3:
