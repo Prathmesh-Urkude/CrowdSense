@@ -92,14 +92,16 @@ const Navbar: React.FC = () => {
           <div className="flex items-center gap-3">
             {isAuthenticated ? (
               <>
-                {/* Report Issue CTA */}
-                <Link
-                  to="/report"
-                  className="hidden sm:flex items-center gap-2 btn-primary px-4 py-2 rounded-lg text-sm"
-                >
-                  <AlertTriangle size={14} />
-                  Report Issue
-                </Link>
+                {/* Report Issue CTA — hidden when already on the report page */}
+                {location.pathname !== '/report' && (
+                  <Link
+                    to="/report"
+                    className="hidden sm:flex items-center gap-2 btn-primary px-4 py-2 rounded-lg text-sm"
+                  >
+                    <AlertTriangle size={14} />
+                    Report Issue
+                  </Link>
+                )}
 
                 {/* Notifications */}
                 <div className="relative">
