@@ -17,23 +17,7 @@ import type { BackendReport } from '../types';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
 
-// ─── Chart mock data (kept as placeholder until backend delivers chart endpoints) ─
-const ACTIVITY_DATA = [
-  { day: 'Mon', reported: 24, resolved: 18 },
-  { day: 'Tue', reported: 31, resolved: 22 },
-  { day: 'Wed', reported: 18, resolved: 29 },
-  { day: 'Thu', reported: 42, resolved: 35 },
-  { day: 'Fri', reported: 38, resolved: 31 },
-  { day: 'Sat', reported: 55, resolved: 28 },
-  { day: 'Sun', reported: 29, resolved: 24 },
-];
-
-const SEVERITY_DATA = [
-  { name: 'Critical', value: 18, color: '#EF4444' },
-  { name: 'High', value: 67, color: '#F97316' },
-  { name: 'Medium', value: 142, color: '#F59E0B' },
-  { name: 'Low', value: 120, color: '#22C55E' },
-];
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const severityFromScore = (score: number): 'critical' | 'high' | 'medium' | 'low' =>
@@ -120,10 +104,10 @@ const ReportCard: React.FC<{ report: BackendReport; index: number }> = ({ report
       try {
         const res = await upvoteAPI.getStatus(report.id);
         if (mounted) {
-          setUpvoted(res.data.upvoted);
+          setUpvoted(res.data.hasUpvoted ?? false);
         }
       } catch {
-        setUpvoted(false); // fallback
+        setUpvoted(false);
       }
     };
     fetchStatus();
@@ -160,50 +144,55 @@ const ReportCard: React.FC<{ report: BackendReport; index: number }> = ({ report
       transition={{ delay: index * 0.05 }}
       className="cs-card p-4 flex flex-col gap-3 hover:scale-[1.01] transition-transform duration-200"
     >
-      {/* Image */}
-      {report.image_url ? (
-        <div className="rounded-xl overflow-hidden h-36 bg-bg-elevated">
-          <img
-            src={`http://localhost:5000${report.image_url}`}
-            alt="report"
-            className="w-full h-full object-cover"
-          />
+      <Link to={`/issues/${report.id}`} className="flex flex-col gap-3 flex-1">
+        {/* Image */}
+        {report.image_url ? (
+          <div className="rounded-xl overflow-hidden h-36 bg-bg-elevated">
+            <img
+              src={`http://localhost:5000${report.image_url}`}
+              alt="report"
+              className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+            />
+          </div>
+        ) : (
+          <div className="rounded-xl h-36 bg-bg-elevated border border-border flex items-center justify-center">
+            <MapPin size={28} className="text-gray-600" />
+          </div>
+        )}
+
+        {/* Badges */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <SeverityBadge severity={sev} size="sm" />
+          <span className="text-xs font-mono text-gray-600">#{report.id.slice(-6)}</span>
         </div>
-      ) : (
-        <div className="rounded-xl h-36 bg-bg-elevated border border-border flex items-center justify-center">
-          <MapPin size={28} className="text-gray-600" />
+
+        {/* Description */}
+        <p className="text-sm text-gray-300 line-clamp-2 flex-1">
+          {report.description || 'No description provided.'}
+        </p>
+
+        {/* Category & date */}
+        <div className="text-xs text-gray-500 flex items-center justify-between">
+          <span className="capitalize font-medium text-gray-400">
+            {report.category?.replace(/_/g, ' ')}
+          </span>
+          <span className="flex items-center gap-1">
+            <Calendar size={10} />
+            {formatDistanceToNow(new Date(report.created_at), { addSuffix: true })}
+          </span>
         </div>
-      )}
-
-      {/* Badges */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <SeverityBadge severity={sev} size="sm" />
-        <span className="text-xs font-mono text-gray-600">#{report.id}</span>
-      </div>
-
-      {/* Description */}
-      <p className="text-sm text-gray-300 line-clamp-2 flex-1">
-        {report.description || 'No description provided.'}
-      </p>
-
-      {/* Category & date */}
-      <div className="text-xs text-gray-500 flex items-center justify-between">
-        <span className="capitalize font-medium text-gray-400">{report.category}</span>
-        <span className="flex items-center gap-1">
-          <Calendar size={10} />
-          {formatDistanceToNow(new Date(report.created_at), { addSuffix: true })}
-        </span>
-      </div>
+      </Link>
 
       {/* Upvote + Priority */}
       <div className="flex items-center justify-between pt-2 border-t border-border">
         <button
           onClick={handleUpvote}
           disabled={upvoted === null}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-all ${upvoted
-            ? 'bg-amber/10 border-amber/30 text-amber'
-            : 'bg-bg-elevated border-border text-gray-400 hover:border-amber/20'
-            }`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-all disabled:opacity-50 ${
+            upvoted
+              ? 'bg-amber/10 border-amber/30 text-amber'
+              : 'bg-bg-elevated border-border text-gray-400 hover:border-amber/20'
+          }`}
         >
           <ThumbsUp size={12} className={upvoted ? 'fill-amber' : ''} />
           {count} Upvote{count !== 1 ? 's' : ''}
@@ -233,12 +222,31 @@ const Dashboard: React.FC = () => {
   };
 
   // Derived stats from real reports
-  const totalIssues = reports.length;
-  const openIssues = reports.filter(r => !r.status || r.status === 'open').length;
+  const totalIssues   = reports.length;
+  const openIssues    = reports.filter(r => ['reported','under-review','assigned','in_progress','open','pending'].includes(r.status ?? '')).length;
   const criticalCount = reports.filter(r => r.severity_score >= 80).length;
-  const avgPriority = totalIssues
+  const avgPriority   = totalIssues
     ? Math.round(reports.reduce((s, r) => s + r.priority_score, 0) / totalIssues)
     : 0;
+
+  // Derived chart data from real reports
+  const activityData = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    const dateStr = d.toISOString().slice(0, 10);
+    return {
+      day: DAY_LABELS[d.getDay()],
+      reported: reports.filter(r => r.created_at?.slice(0, 10) === dateStr).length,
+    };
+  });
+  const thisWeekCount = activityData.reduce((s, d) => s + d.reported, 0);
+
+  const severityData = [
+    { name: 'Critical', value: reports.filter(r => r.severity_score >= 80).length,                            color: '#EF4444' },
+    { name: 'High',     value: reports.filter(r => r.severity_score >= 60 && r.severity_score < 80).length,   color: '#F97316' },
+    { name: 'Medium',   value: reports.filter(r => r.severity_score >= 40 && r.severity_score < 60).length,   color: '#F59E0B' },
+    { name: 'Low',      value: reports.filter(r => r.severity_score < 40).length,                             color: '#22C55E' },
+  ];
 
   if (loading) {
     return (
@@ -309,30 +317,25 @@ const Dashboard: React.FC = () => {
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h3 className="font-display text-lg font-bold text-white uppercase tracking-wide">Weekly Activity</h3>
-                <p className="text-xs text-gray-500">Reports vs Resolutions — Last 7 days</p>
+                <p className="text-xs text-gray-500">New reports — Last 7 days</p>
               </div>
-              <span className="text-xs font-mono text-green-400 bg-green-500/10 px-2 py-1 rounded border border-green-500/20">
-                +18% resolved
+              <span className="text-xs font-mono text-amber bg-amber/10 px-2 py-1 rounded border border-amber/20">
+                {thisWeekCount} this week
               </span>
             </div>
             <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={ACTIVITY_DATA} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+              <AreaChart data={activityData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <defs>
                   <linearGradient id="gradReported" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#F97316" stopOpacity={0.3} />
                     <stop offset="100%" stopColor="#F97316" stopOpacity={0} />
                   </linearGradient>
-                  <linearGradient id="gradResolved" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#06B6D4" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#06B6D4" stopOpacity={0} />
-                  </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
                 <XAxis dataKey="day" tick={{ fill: '#6B7280', fontSize: 11 }} />
-                <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} />
+                <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} allowDecimals={false} />
                 <Tooltip content={<CustomTooltip />} />
                 <Area type="monotone" dataKey="reported" name="Reported" stroke="#F97316" strokeWidth={2} fill="url(#gradReported)" />
-                <Area type="monotone" dataKey="resolved" name="Resolved" stroke="#06B6D4" strokeWidth={2} fill="url(#gradResolved)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -340,18 +343,18 @@ const Dashboard: React.FC = () => {
           {/* Severity breakdown */}
           <div className="cs-card p-5">
             <h3 className="font-display text-lg font-bold text-white uppercase tracking-wide mb-1">By Severity</h3>
-            <p className="text-xs text-gray-500 mb-4">Open issues breakdown</p>
+            <p className="text-xs text-gray-500 mb-4">Active issues breakdown</p>
             <ResponsiveContainer width="100%" height={160}>
               <PieChart>
-                <Pie data={SEVERITY_DATA} cx="50%" cy="50%" innerRadius={45} outerRadius={70}
+                <Pie data={severityData} cx="50%" cy="50%" innerRadius={45} outerRadius={70}
                   dataKey="value" stroke="none">
-                  {SEVERITY_DATA.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  {severityData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                 </Pie>
                 <Tooltip content={<CustomTooltip />} />
               </PieChart>
             </ResponsiveContainer>
             <div className="space-y-2 mt-2">
-              {SEVERITY_DATA.map(s => (
+              {severityData.map(s => (
                 <div key={s.name} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full" style={{ background: s.color }} />

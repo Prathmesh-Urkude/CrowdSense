@@ -105,7 +105,11 @@ const IssueDetail: React.FC = () => {
         const data = res.data as any;
         setReport(data?.report ?? data);
       })
-      .catch(() => setReport(null))
+      .catch((err) => {
+        // 403 = not owner/admin but report exists — backend still returns { report }
+        const data = err?.response?.data;
+        setReport(data?.report ?? null);
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
