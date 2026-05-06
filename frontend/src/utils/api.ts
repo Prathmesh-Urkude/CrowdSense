@@ -101,7 +101,7 @@ export const upvoteAPI = {
 
   /** Check if current user upvoted — GET /upvote/:reportId/status */
   getStatus: (reportId: string) =>
-    api.get<{ upvoted: boolean }>(`/upvote/${reportId}/status`),
+    api.get<{ hasUpvoted: boolean }>(`/upvote/${reportId}/status`),
 };
 
 // ─── AI service ───────────────────────────────────────────────────────────────
@@ -111,6 +111,8 @@ export const aiAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 30000,
     }),
+  retry: (image_url: string) =>
+    api.post<AIAnalysis | any>('/ai/retry', { image_url }, { timeout: 30000 }),
 };
 
 // ─── Admin (/admin) ───────────────────────────────────────────────────────────
